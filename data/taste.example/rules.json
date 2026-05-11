@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "defaultCandidateLimit": 24,
+  "segmentTrackCount": 3,
+  "preferredTags": ["late-night", "soft", "warm", "indie"],
+  "avoidTags": ["too-bright", "too-dramatic"],
+  "moodAliases": {
+    "coding": ["coding", "focus", "late-night"],
+    "quiet": ["quiet", "soft", "low-energy"],
+    "chinese indie": ["chinese-indie", "zh-CN", "indie"],
+    "less sad": ["soft", "warm", "not-too-sad"]
+  },
+  "artistAliases": {}
+}
