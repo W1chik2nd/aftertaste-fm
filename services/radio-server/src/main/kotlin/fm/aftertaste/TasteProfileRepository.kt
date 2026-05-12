@@ -83,6 +83,7 @@ class CandidateSelector(private val repository: TasteProfileRepository) {
         val desiredTags = desiredTags(context, profile.rules)
         val prompt = context.mood.orEmpty().lowercase()
         val scopedTracks = scopedTracks(profile.tracks, context, profile.rules)
+            .distinctBy { "${normalizeForMatch(it.artist)}|${normalizeForMatch(it.title)}" }
         val scored = scopedTracks.map { tagged ->
             ScoredTaggedTrack(tagged, score(tagged, desiredTags, prompt, profile.rules))
         }
@@ -226,20 +227,34 @@ class CandidateSelector(private val repository: TasteProfileRepository) {
         limit: Int,
         context: RecommendationContext
     ): List<ScoredTaggedTrack> {
-        if (ranked.size <= limit) return ranked
+        val random = Random("${context.mood}-${context.localTime}-${context.variationSeed}".hashCode())
+        if (ranked.size <= limit) return rotateScoreBands(ranked, random)
 
-        val random = Random("${context.mood}-${context.localTime}-${System.nanoTime()}".hashCode())
         val anchorCount = (limit / 4).coerceIn(6, 18)
         val explorationWindow = (limit * 4).coerceAtMost(ranked.size)
-        val anchors = ranked.take(anchorCount)
+        val anchorWindow = (anchorCount * 2).coerceAtMost(ranked.size)
+        val anchors = ranked
+            .take(anchorWindow)
+            .shuffled(random)
+            .take(anchorCount)
         val exploration = ranked
-            .drop(anchorCount)
-            .take(explorationWindow - anchorCount)
+            .drop(anchorWindow)
+            .take((explorationWindow - anchorWindow).coerceAtLeast(0))
             .shuffled(random)
             .take(limit - anchorCount)
 
         return diversifyArtists(anchors + exploration).take(limit)
     }
+
+    private fun rotateScoreBands(
+        ranked: List<ScoredTaggedTrack>,
+        random: Random
+    ): List<ScoredTaggedTrack> =
+        ranked
+            .groupBy { (it.score * 2).toInt() }
+            .toSortedMap(compareByDescending { it })
+            .values
+            .flatMap { band -> band.shuffled(random) }
 }
 
 data class CandidateSelection(

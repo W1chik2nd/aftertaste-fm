@@ -7,8 +7,8 @@ await loadDotEnv(path.join(process.cwd(), ".env"));
 
 const args = parseArgs(process.argv.slice(2));
 const draftPath = args._[0];
-const apiKey = process.env.OPENAI_API_KEY;
-const model = args.model ?? process.env.OPENAI_ANALYSIS_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-5.2";
+const apiKey = process.env.LLM_API_KEY;
+const model = args.model ?? process.env.ANALYSIS_MODEL ?? process.env.LLM_MODEL ?? "gpt-5.2";
 const batchSize = Number(args["batch-size"] ?? process.env.ANALYSIS_BATCH_SIZE ?? 12);
 const limit = args.limit ? Number(args.limit) : null;
 
@@ -18,7 +18,7 @@ if (!draftPath || args.help) {
 }
 
 if (!apiKey) {
-  console.error("OPENAI_API_KEY is required for OpenAI playlist analysis.");
+  console.error("LLM_API_KEY is required for OpenAI playlist analysis.");
   process.exit(1);
 }
 

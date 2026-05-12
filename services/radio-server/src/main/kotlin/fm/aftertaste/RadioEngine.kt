@@ -12,6 +12,7 @@ import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.time.Duration
 import kotlin.math.min
+import kotlin.random.Random
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
@@ -45,12 +46,33 @@ class HostVoiceService {
         val mood = hostMoodLabel(context)
         val leadLine = lead?.let { "Now, ${it.artist}, ${it.title}." } ?: "Let this chapter take its time."
         val leadIntro = lead?.let { "${it.title} by ${it.artist}" } ?: "this next record"
-        val weather = context.weather?.let { " Outside, ${it.locationName} is ${it.condition} at ${"%.0f".format(it.temperatureC)} degrees." }.orEmpty()
+        val weather = context.weather?.let {
+            " Outside in ${friendlyPlaceName(it.locationName)}, it is ${it.condition} and ${"%.0f".format(it.temperatureC)} degrees."
+        }.orEmpty()
+        val seed = listOf(segmentTitle, context.variationSeed, lead?.id).joinToString("|").hashCode()
+        val firstChapterOpenings = listOf(
+            "It is $timeText now.$weather We start quietly, with $leadIntro close enough to feel personal and far enough away to leave some room.",
+            "$timeText.$weather This first chapter does not need a grand entrance. $leadIntro can come in like someone lowering their voice at the end of the day.",
+            "The hour is $timeText.$weather For the first record, we keep the lights low and let $leadIntro set the pace without announcing itself too hard.",
+            "${weather.trimStart()} The clock says $timeText, and this opening chapter is more about settling than declaring. $leadIntro gives us that first soft edge."
+        )
         return when (chapterIndex) {
-            0 -> "It is $timeText now.$weather The city always seems to get a little more honest around this hour. Messages slow down, and the day stops asking quite so much from you. We start with $leadIntro, not as a big announcement, more as a light left on in the room. It keeps close to $mood without forcing the feeling into shape. $leadLine"
-            1 -> "A few songs in, the night has changed texture. The first chapter opened the door; this one stays with what remains after the noise falls away. $leadIntro sits in that space where memory is present but not theatrical, where a chorus can feel like something you almost said and then decided to keep. We will let it come in quietly, then leave the next songs alone. $leadLine"
-            2 -> "This is where the room gets a little wider. Not brighter exactly, just less closed in. After all that looking back, $leadIntro gives the chapter a different kind of pressure: still late-night, still careful, but with more air around it. If the earlier songs were about holding the thought, this one lets it move. $leadLine"
-            else -> "For the last chapter, we do not need to explain too much. The point is not to wrap the night perfectly; it is to leave it somewhere softer than where it began. $leadIntro feels right for that: familiar enough to stay near, distant enough not to demand an answer. Let this one carry us out slowly. $leadLine"
+            0 -> "${firstChapterOpenings.randomBy(seed)} It keeps close to $mood without forcing the feeling into shape. $leadLine"
+            1 -> listOf(
+                "A few songs in, the night has changed texture. This chapter stays with what remains after the noise falls away. $leadIntro gives that feeling a center, then the next songs get to move cleanly around it. $leadLine",
+                "We turn a little, but we do not break the spell. $leadIntro keeps the room low and steady, the kind of song that lets memory be present without making a speech out of it. $leadLine",
+                "The second chapter should feel less like a reset and more like a handoff. $leadIntro carries the thread forward, soft at the edges and clear in the middle. $leadLine"
+            ).randomBy(seed)
+            2 -> listOf(
+                "This is where the room gets a little wider. Not brighter exactly, just less closed in. $leadIntro gives the chapter more air while keeping the late-night pulse intact. $leadLine",
+                "Now we let the show breathe out. $leadIntro opens a wider lane, still careful, still close, but no longer holding every thought in place. $leadLine",
+                "The middle has done its quiet work, so this chapter can lift without rushing. $leadIntro is the door opening a little farther. $leadLine"
+            ).randomBy(seed)
+            else -> listOf(
+                "For the last chapter, we do not need to explain too much. The point is to leave the night somewhere softer than where it began, and $leadIntro feels right for that. $leadLine",
+                "We take the final turn without tying a ribbon around it. $leadIntro can carry us out slowly, with enough distance to feel calm and enough warmth to stay near. $leadLine",
+                "This last stretch is for letting the room settle. $leadIntro does not demand an answer; it just gives the ending somewhere gentle to land. $leadLine"
+            ).randomBy(seed)
         }
     }
 
@@ -217,7 +239,8 @@ class RadioAgent {
             localTime = OffsetDateTime.now().toString(),
             hostLanguage = hostConfig.hostLanguage,
             intent = intent,
-            recentSignals = signals
+            recentSignals = signals,
+            variationSeed = "${System.currentTimeMillis()}-${Random.nextInt()}"
         )
     }
 
@@ -334,6 +357,14 @@ class PlaybackQueue(
         return state()
     }
 
+    fun clear(): PlaybackState {
+        showPlan = null
+        items = emptyList()
+        currentIndex = 0
+        isPlaying = false
+        return state()
+    }
+
     fun restore(playback: PlaybackState, plan: ShowPlan?) {
         if (plan != null) {
             showPlan = plan
@@ -370,7 +401,7 @@ class RadioEngine(
 ) {
     private val agent = RadioAgent()
     private val planner = ShowPlanner(hostConfig)
-    private val llmPlanner = OpenAiLlmShowPlanner.fromEnvironment()
+    private val llmPlanner = ConfiguredLlmShowPlanner.fromEnvironment()
     private val queue = PlaybackQueue(hostConfig)
     private var activePlan: ShowPlan? = null
     private var settings: UserSettings = UserSettings()
@@ -401,7 +432,7 @@ class RadioEngine(
         activePlan = hydratePlanStreams(llmPlan?.toShowPlan(tracks, hostConfig) ?: planner.plan(tracks, context))
         queue.load(activePlan!!)
         persist()
-        val plannerMode = if (llmPlan == null) "mock-radio-agent" else "openai-llm-radio-agent"
+        val plannerMode = if (llmPlan == null) "mock-radio-agent" else llmPlanner.mode
         return PlanResponse(
             activePlan!!,
             queue.state(),
@@ -425,6 +456,11 @@ class RadioEngine(
     fun next(): PlaybackState = queue.next().also { persist() }
 
     fun previous(): PlaybackState = queue.previous().also { persist() }
+
+    fun clearPlayback(): PlaybackState {
+        activePlan = null
+        return queue.clear().also { persist() }
+    }
 
     fun settings(): SettingsResponse =
         SettingsResponse(weatherLocation = settings.weatherLocation, weather = settings.weather)
@@ -538,3 +574,6 @@ private object MockMusicProviderFallback {
         Track("mock", "fallback-3", "Almost Morning", "Aftertaste House Band")
     )
 }
+
+private fun <T> List<T>.randomBy(seed: Int): T =
+    this[Random(seed).nextInt(size)]

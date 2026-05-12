@@ -28,7 +28,7 @@ sequenceDiagram
 
 ## Core Concepts
 
-- `RadioAgent`: the AI orchestration layer. It turns chat, taste profile, routines, time, weather, and provider results into a planning context. v0.1 can use an OpenAI-backed planner and returns an `AgentTrace` so the UI can show what happened.
+- `RadioAgent`: the AI orchestration layer. It turns chat, taste profile, routines, time, weather, and provider results into a planning context. v0.1 can use a configured runtime LLM planner and returns an `AgentTrace` so the UI can show what happened.
 - `TasteProfileRepository`: loads offline profile, rules, and tagged tracks from `data/taste/`, falling back to `data/taste.example/`.
 - `CandidateSelector`: scores tagged tracks against the current request and returns a small candidate pool for the planner.
 - `ShowPlan`: title, date, host config, and multiple `ShowSegment` values.
@@ -61,7 +61,7 @@ v0.1 implementation:
 - `TasteProfileRepository` loads offline tagged tracks.
 - `CandidateSelector` ranks those tracks by tags, language, energy, valence, night score, coding score, and skip risk.
 - `MusicProvider.getRecommendations(context)` returns normalized candidate tracks only when no local taste pool exists.
-- `LlmShowPlanner` uses OpenAI Structured Outputs when `OPENAI_API_KEY` is configured.
+- `LlmShowPlanner` can use OpenAI Responses, OpenAI-compatible chat completions, or Anthropic Messages when a runtime LLM key is configured.
 - `ShowPlanner` groups candidates into segment-sized batches as the fallback.
 - `HostVoiceService` writes one English host script per segment.
 - `PlaybackQueue` expands the show into host and track items.

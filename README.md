@@ -34,14 +34,14 @@ v0.1 has a mock `RadioAgent`, but the boundary is already in place:
 3. `TasteProfileRepository` loads offline tagged tracks from `data/taste/`.
 4. `CandidateSelector` picks a small candidate pool from local tags.
 5. If there is no local taste pool, `MusicProvider` returns candidate tracks from mock data or Netease.
-6. `LlmShowPlanner` turns candidates into titled radio segments when `OPENAI_API_KEY` is set. It receives the selected candidate pool plus compact taste evidence, not the whole listening history.
+6. `LlmShowPlanner` turns candidates into titled radio segments when a runtime LLM key is set. It receives the selected candidate pool plus compact taste evidence, not the whole listening history.
 7. `ShowPlanner` remains the deterministic fallback.
 8. `PlaybackQueue` expands each segment into `HostVoiceItem(with lead Track) + TrackItem + TrackItem`. The host can speak over the chapter lead's opening, then the rest of the chapter plays clean.
 9. The API returns `agentTrace` so the web UI can show how the agent interpreted the request.
 
 This keeps AI recommendation logic in Kotlin while TypeScript handles the UI and provider adapter boundary.
 
-If `OPENAI_API_KEY` is set, `radio-server` asks the LLM to choose segment titles, host scripts, and track groupings from provider candidates. When offline taste data exists, the LLM sees compact tags, language, energy/valence scores, night/coding fit, skip risk, and notes for each candidate. If the API call fails or no key exists, it falls back to the deterministic planner so the app still runs.
+If `LLM_API_KEY` is set, `radio-server` asks the configured LLM to choose segment titles, host scripts, and track groupings from provider candidates. The runtime planner supports OpenAI Responses, OpenAI-compatible chat completions, and Anthropic Messages. When offline taste data exists, the LLM sees compact tags, language, energy/valence scores, night/coding fit, skip risk, and notes for each candidate. If the API call fails or no key exists, it falls back to the local planner so the app still runs.
 
 ## Offline Taste Data
 
@@ -126,7 +126,7 @@ For higher-quality offline analysis with a general taxonomy:
 npm run analyze:playlist -- data/taste/drafts/<playlist>.tagged-draft.json
 ```
 
-That script uses `OPENAI_API_KEY` and writes `data/taste/tracks.evidence.json`. It is designed for arbitrary playlists, not just this first Netease import.
+That script uses `LLM_API_KEY` with the OpenAI Responses API and writes `data/taste/tracks.evidence.json`. It is designed for arbitrary playlists, not just this first Netease import.
 
 Both evidence scripts update `data/taste/profile.md` and `data/taste/rules.json` after writing `tracks.evidence.json`, so the runtime LLM reads the latest taste profile automatically.
 
@@ -184,10 +184,13 @@ The Kotlin `gradlew` script in this prototype downloads a local Gradle distribut
 - `NETEASE_COOKIE`: optional, never commit a real cookie.
 - `NETEASE_API_BASE`: optional compatible Netease API server for the adapter to call.
 - `MOCK_NETEASE`: set `true` to force mock mode. Set `false` to use the bundled `NeteaseCloudMusicApi` package, or `NETEASE_API_BASE` if provided.
-- `OPENAI_API_KEY`: optional. Enables the LLM show planner.
-- `OPENAI_MODEL`: defaults to `gpt-5.2`.
-- `OPENAI_CHAT_MODEL`: optional model for ordinary agent chat; defaults to `OPENAI_MODEL`.
-- `OPENAI_ANALYSIS_MODEL`: optional model override for offline playlist analysis.
+- `LLM_PROVIDER`: optional runtime planner provider. Use `openai`, `openai-compatible`, or `anthropic`.
+- `LLM_API_KEY`: optional. Enables the LLM show planner and agent chat.
+- `LLM_BASE_URL`: optional for OpenAI-compatible providers such as Minimax, Qwen, Moonshot, or a local gateway.
+- `LLM_MODEL`: planner model. Defaults to `gpt-5.2` for OpenAI-compatible providers and a Haiku-class default for Anthropic.
+- `LLM_CHAT_MODEL`: optional model for ordinary agent chat; defaults to `LLM_MODEL`.
+- `LLM_TEMPERATURE`: defaults to `0.75`; higher values give more variation, lower values give more repeatability.
+- `ANALYSIS_MODEL`: optional model override for the OpenAI-specific offline playlist analysis script.
 - `ANALYSIS_BATCH_SIZE`: defaults to `12` tracks per offline analysis call.
 - `LLM_CANDIDATE_LIMIT`: defaults to `30`; caps how many selected tracks are sent to the runtime planner.
 - `OPENWEATHER_API_KEY`: optional. Enables OpenWeather weather context for the saved user location.
@@ -216,7 +219,7 @@ Netease integration can be unstable and may have account, region, VIP, cookie, o
 ## Roadmap
 
 - Add SQLite persistence.
-- Harden the OpenAI LLM planner response schema and add fixtures.
+- Harden the runtime LLM planner response schema and add fixtures.
 - Add richer TTS voice controls and optional streaming voice generation.
 - Add audio features and user behavior to offline analysis.
 - Expand `MusicProvider` implementations: local files, CSV, Spotify, Apple Music, QQ Music.

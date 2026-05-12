@@ -27,6 +27,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const radioApi = {
   health: () => request<HealthResponse>("/api/health"),
   now: () => request<PlaybackState>("/api/now"),
+  clearPlayback: () => request<PlaybackState>("/api/playback/clear", { method: "POST" }),
   settings: () => request<SettingsResponse>("/api/settings"),
   setLocation: (location: string) =>
     request<SettingsResponse>("/api/settings/location", {

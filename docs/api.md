@@ -53,6 +53,12 @@ Stores the user's weather location and refreshes weather. If `OPENWEATHER_API_KE
 
 Refreshes the saved location if one exists.
 
+## Playback Session
+
+`POST /api/playback/clear`
+
+Clears the active show plan and playback queue while keeping user settings such as weather location.
+
 ## Show Planning
 
 `POST /api/plan/today`

@@ -208,7 +208,8 @@ data class RecommendationContext(
     val hostLanguage: String = "en-US",
     val intent: String = "daily_show",
     val recentSignals: List<String> = emptyList(),
-    val weather: WeatherSnapshot? = null
+    val weather: WeatherSnapshot? = null,
+    val variationSeed: String? = null
 )
 
 @Serializable

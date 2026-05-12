@@ -108,6 +108,10 @@ fun Application.module() {
                 call.respond(engine.previous())
             }
 
+            post("/playback/clear") {
+                call.respond(engine.clearPlayback())
+            }
+
             post("/plan/today") {
                 call.respond(engine.planToday())
             }

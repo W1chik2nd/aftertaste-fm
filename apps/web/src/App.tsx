@@ -79,7 +79,7 @@ function App() {
 
   useEffect(() => {
     void refreshStatus();
-    void radioApi.now().then(setPlayback).catch(() => undefined);
+    void radioApi.clearPlayback().then(setPlayback).catch(() => setPlayback(emptyPlayback));
     void radioApi.settings().then((value) => {
       setSettings(value);
       setLocationInput(value.weatherLocation ?? "");
@@ -339,6 +339,15 @@ function App() {
           <div className="section-heading">
             <span>Radio Agent</span>
             <strong>{agentTrace?.mode ?? "ready"}</strong>
+          </div>
+
+          <div className="model-note" aria-label="Model quality note">
+            <Sparkles size={16} />
+            <p>
+              Best results need a model that follows JSON reliably across 30-50 candidate songs and can write natural
+              radio copy. Smaller or cheaper models are fine for chat, but the show planner benefits from stronger
+              instruction following.
+            </p>
           </div>
 
           <div className="conversation" aria-label="Agent conversation">
