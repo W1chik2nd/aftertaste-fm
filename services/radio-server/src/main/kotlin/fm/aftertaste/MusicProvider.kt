@@ -2,14 +2,12 @@ package fm.aftertaste
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.http.encodeURLParameter
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import org.slf4j.LoggerFactory
 
 interface MusicProvider {
     val name: String
@@ -22,7 +20,10 @@ interface MusicProvider {
     suspend fun getLyrics(trackId: String): String?
     suspend fun getPlaylist(playlistId: String): Playlist
     suspend fun getRecommendations(context: RecommendationContext): List<Track>
+    suspend fun healthCheck(): ProviderHealth = ProviderHealth(status = "unknown")
 }
+
+data class ProviderHealth(val status: String, val mode: String? = null)
 
 class MockMusicProvider : MusicProvider {
     override val name: String = "mock"
@@ -65,36 +66,38 @@ class MockMusicProvider : MusicProvider {
         )
 
     override suspend fun getRecommendations(context: RecommendationContext): List<Track> {
-        val quietBias = context.mood?.contains("quiet", ignoreCase = true) == true ||
+        val quietBias = context.routing.energy == "low" ||
+            context.mood?.contains("quiet", ignoreCase = true) == true ||
             context.mood?.contains("late", ignoreCase = true) == true
         return if (quietBias) tracks else tracks.shuffled().take(tracks.size)
     }
+
+    override suspend fun healthCheck(): ProviderHealth = ProviderHealth(status = "ok", mode = "mock")
 }
 
 class NeteaseMusicProvider(
     private val baseUrl: String,
-    private val fallback: MusicProvider? = MockMusicProvider()
+    private val fallback: MusicProvider? = MockMusicProvider(),
+    private val client: HttpClient = HttpClients.shared
 ) : MusicProvider {
     override val name: String = "netease"
-    private val parser = Json { ignoreUnknownKeys = true }
-
-    private val client = HttpClient(CIO) {
-        install(ContentNegotiation) {
-            json(parser)
-        }
-    }
+    private val logger = LoggerFactory.getLogger(NeteaseMusicProvider::class.java)
+    private val parser: Json = HttpClients.sharedJson
 
     override suspend fun search(query: String): List<Track> =
         runCatching { client.get("$baseUrl/search?keywords=${query.encodeURLParameter()}").body<List<Track>>() }
-            .getOrElse { fallback?.search(query) ?: throw it }
+            .getOrElse { error ->
+                logger.warn("netease search fallback: {}", error.message)
+                fallback?.search(query) ?: throw error
+            }
 
     override suspend fun getTrack(trackId: String): Track? =
         runCatching { client.get("$baseUrl/song/detail?id=${trackId.encodeURLParameter()}").body<Track>() }
             .getOrNull() ?: fallback?.getTrack(trackId)
 
     override suspend fun getStreamUrl(trackId: String): StreamUrl =
-        runCatching { client.get("$baseUrl/song/url?id=${trackId.encodeURLParameter()}").body<StreamUrl>() }
-            .getOrElse { StreamUrl("netease", trackId, url = null, reason = "adapter_unreachable") }
+        getStreamUrls(listOf(trackId)).firstOrNull()
+            ?: StreamUrl("netease", trackId, url = null, reason = "adapter_unreachable")
 
     override suspend fun getStreamUrls(trackIds: List<String>): List<StreamUrl> {
         if (trackIds.isEmpty()) return emptyList()
@@ -102,13 +105,14 @@ class NeteaseMusicProvider(
             val ids = trackIds.joinToString(",").encodeURLParameter()
             val text = client.get("$baseUrl/song/url?id=$ids").body<String>()
             parser.decodeFromString(ListSerializer(StreamUrl.serializer()), text)
-        }.getOrElse {
+        }.getOrElse { error ->
+            logger.warn("netease getStreamUrls fallback: {}", error.message)
             trackIds.map { trackId -> StreamUrl("netease", trackId, url = null, reason = "adapter_unreachable") }
         }
     }
 
     override suspend fun getLyrics(trackId: String): String? =
-        runCatching { client.get("$baseUrl/lyric?id=${trackId.encodeURLParameter()}").body<Map<String, String>>()["lyrics"] }
+        runCatching { client.get("$baseUrl/lyric?id=${trackId.encodeURLParameter()}").body<Map<String, String?>>()["lyrics"] }
             .getOrNull()
 
     override suspend fun getPlaylist(playlistId: String): Playlist =
@@ -119,4 +123,10 @@ class NeteaseMusicProvider(
         runCatching { client.get("$baseUrl/recommend/songs").body<List<Track>>() }
             .getOrElse { fallback?.getRecommendations(context) ?: throw it }
             .ifEmpty { fallback?.getRecommendations(context) ?: emptyList() }
+
+    override suspend fun healthCheck(): ProviderHealth =
+        runCatching {
+            val body = client.get("$baseUrl/health").body<Map<String, String>>()
+            ProviderHealth(status = body["status"] ?: "ok", mode = body["mode"])
+        }.getOrElse { ProviderHealth(status = "offline") }
 }

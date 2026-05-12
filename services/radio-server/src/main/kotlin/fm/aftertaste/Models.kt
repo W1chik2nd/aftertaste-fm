@@ -207,10 +207,25 @@ data class RecommendationContext(
     val localTime: String? = null,
     val hostLanguage: String = "en-US",
     val intent: String = "daily_show",
+    val routing: RoutingIntent = RoutingIntent(),
     val recentSignals: List<String> = emptyList(),
     val weather: WeatherSnapshot? = null,
     val variationSeed: String? = null
 )
+
+@Serializable
+data class RoutingIntent(
+    val language: String? = null,
+    val energy: String? = null,
+    val routine: String? = null,
+    val moodTag: String? = null,
+    val avoid: List<String> = emptyList(),
+    val artists: List<String> = emptyList()
+) {
+    fun isEmpty(): Boolean =
+        language == null && energy == null && routine == null && moodTag == null &&
+            avoid.isEmpty() && artists.isEmpty()
+}
 
 @Serializable
 data class WeatherSnapshot(

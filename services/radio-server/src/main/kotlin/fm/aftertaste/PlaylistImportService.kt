@@ -8,9 +8,9 @@ import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
 class PlaylistImportService(
-    private val importsPath: Path = Path.of("../../data/taste/imports"),
-    private val draftsPath: Path = Path.of("../../data/taste/drafts"),
-    private val lyricsPath: Path = Path.of("../../data/taste/lyrics")
+    private val importsPath: Path = Env.path("TASTE_IMPORTS_DIR", "data/taste/imports"),
+    private val draftsPath: Path = Env.path("TASTE_DRAFTS_DIR", "data/taste/drafts"),
+    private val lyricsPath: Path = Env.path("TASTE_LYRICS_DIR", "data/taste/lyrics")
 ) {
     private val json = Json {
         prettyPrint = true
@@ -96,13 +96,36 @@ class PlaylistImportService(
             notes = "TODO: manually tag this imported track."
         )
 
-    private fun guessLanguage(title: String, artist: String): String =
-        if ((title + artist).any { it.code > 127 }) "zh-CN" else "unknown"
+    private fun guessLanguage(title: String, artist: String): String {
+        val text = title + artist
+        return when {
+            text.any { it in '぀'..'ゟ' || it in '゠'..'ヿ' } -> "ja"
+            text.any { it in '가'..'힯' } -> "ko"
+            text.any { isCjkUnified(it) } -> "zh-CN"
+            text.all { it.code <= 127 } -> "en"
+            else -> "unknown"
+        }
+    }
 
-    private fun safeSlug(value: String): String =
-        value.lowercase()
-            .replace(Regex("""[^a-z0-9\u4e00-\u9fa5]+"""), "-")
-            .trim('-')
-            .take(96)
-            .ifBlank { "playlist" }
+    private fun isCjkUnified(ch: Char): Boolean =
+        ch in '㐀'..'䶿' || ch in '一'..'鿿' || ch in '豈'..'﫿'
+
+    private fun safeSlug(value: String): String {
+        val builder = StringBuilder(value.length)
+        var lastDash = false
+        value.lowercase().forEach { ch ->
+            val keep = ch.isDigit() || (ch in 'a'..'z') ||
+                ch in '぀'..'ゟ' || ch in '゠'..'ヿ' || // kana
+                ch in '가'..'힯' ||                              // hangul syllables
+                isCjkUnified(ch)
+            if (keep) {
+                builder.append(ch)
+                lastDash = false
+            } else if (!lastDash) {
+                builder.append('-')
+                lastDash = true
+            }
+        }
+        return builder.toString().trim('-').take(96).ifBlank { "playlist" }
+    }
 }

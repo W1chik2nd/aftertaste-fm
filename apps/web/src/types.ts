@@ -35,16 +35,23 @@ export type PlaybackState = {
   hostLanguage: string;
 };
 
+export type HostConfig = {
+  hostLanguage: string;
+  hostStyle: string;
+  hostName: string;
+  segmentSpeechMode: string;
+};
+
 export type HealthResponse = {
   status: string;
   provider: string;
-  hostConfig: {
-    hostLanguage: string;
-    hostStyle: string;
-    hostName: string;
-    segmentSpeechMode: string;
-  };
+  hostConfig: HostConfig;
   version: string;
+};
+
+export type AdapterHealthResponse = {
+  status: string;
+  mode?: string | null;
 };
 
 export type WeatherSnapshot = {
@@ -71,24 +78,34 @@ export type LyricsResponse = {
   lyrics?: string | null;
 };
 
+export type AgentSignal = { label: string; value: string };
+
 export type AgentTrace = {
   mode: string;
   summary: string;
   contextWindow: string[];
   routing: string[];
   recommendationStrategy: string[];
-  signals: Array<{
-    label: string;
-    value: string;
-  }>;
+  signals: AgentSignal[];
+};
+
+export type ShowSegment = {
+  id: string;
+  title: string;
+  hostScript: string;
+  tracks: Track[];
+};
+
+export type ShowPlan = {
+  id: string;
+  title: string;
+  generatedAt: string;
+  hostConfig: HostConfig;
+  segments: ShowSegment[];
 };
 
 export type PlanResponse = {
-  showPlan: {
-    id: string;
-    title: string;
-    generatedAt: string;
-  };
+  showPlan: ShowPlan;
   playback: PlaybackState;
   agentTrace?: AgentTrace | null;
 };

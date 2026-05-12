@@ -22,12 +22,15 @@ import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.Frame
 import io.ktor.websocket.send
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.Serializable
 
 fun main() {
     val port = Env.value("PORT")?.toIntOrNull() ?: 8080
-    embeddedServer(Netty, port = port, host = "0.0.0.0") {
+    val host = Env.value("RADIO_BIND_HOST") ?: "127.0.0.1"
+    embeddedServer(Netty, port = port, host = host) {
         module()
     }.start(wait = true)
 }
@@ -40,18 +43,17 @@ fun Application.module() {
     }
     val hostConfig = HostConfig(
         hostLanguage = Env.value("HOST_LANGUAGE") ?: "en-US",
-        hostStyle = (Env.value("HOST_VOICE_STYLE") ?: "calm-late-night").replace("-", " "),
+        hostStyle = normalizeHostStyle(Env.value("HOST_VOICE_STYLE")) ?: "calm late-night radio",
         hostName = Env.value("HOST_NAME") ?: "Aftertaste",
         segmentSpeechMode = "between_segments"
     )
+    val adapterBaseUrl = Env.value("NETEASE_ADAPTER_BASE_URL") ?: "http://localhost:8090"
     val provider = when ((Env.value("MUSIC_PROVIDER") ?: "mock").lowercase()) {
-        "netease" -> NeteaseMusicProvider(Env.value("NETEASE_ADAPTER_BASE_URL") ?: "http://localhost:8090")
+        "netease" -> NeteaseMusicProvider(adapterBaseUrl)
         else -> MockMusicProvider()
     }
-    val neteaseImportProvider = NeteaseMusicProvider(
-        baseUrl = Env.value("NETEASE_ADAPTER_BASE_URL") ?: "http://localhost:8090",
-        fallback = null
-    )
+    val neteaseImportProvider = NeteaseMusicProvider(baseUrl = adapterBaseUrl, fallback = null)
+    val adapterHealthProvider = NeteaseMusicProvider(baseUrl = adapterBaseUrl, fallback = null)
     val engine = RadioEngine(provider, neteaseImportProvider, hostConfig, StateStore())
     val agentChat = AgentChatService.fromEnvironment()
 
@@ -60,7 +62,11 @@ fun Application.module() {
     }
     install(WebSockets)
     install(CORS) {
-        anyHost()
+        // Dev-only: allow localhost origins on any port. Production deployments should restrict this.
+        allowHost("localhost", schemes = listOf("http", "https"))
+        allowHost("127.0.0.1", schemes = listOf("http", "https"))
+        Env.value("EXTRA_CORS_HOSTS")?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() }
+            ?.forEach { allowHost(it, schemes = listOf("http", "https")) }
         allowHeader(HttpHeaders.ContentType)
         allowMethod(HttpMethod.Get)
         allowMethod(HttpMethod.Post)
@@ -73,6 +79,11 @@ fun Application.module() {
         route("/api") {
             get("/health") {
                 call.respond(HealthResponse("ok", provider.name, hostConfig))
+            }
+
+            get("/health/adapter") {
+                val health = adapterHealthProvider.healthCheck()
+                call.respond(AdapterHealthResponse(status = health.status, mode = health.mode))
             }
 
             get("/now") {
@@ -146,11 +157,39 @@ fun Application.module() {
             }
         }
 
+        val wsLogger = org.slf4j.LoggerFactory.getLogger("fm.aftertaste.WsStream")
         webSocket("/ws/stream") {
-            while (true) {
-                send(Frame.Text(json.encodeToString(engine.now())))
-                delay(2000)
+            val intervalMs = Env.value("WS_STREAM_INTERVAL_MS")?.toLongOrNull() ?: 2000L
+            try {
+                var lastSnapshot: String? = null
+                while (isActive) {
+                    val snapshot = json.encodeToString(engine.now())
+                    if (snapshot != lastSnapshot) {
+                        send(Frame.Text(snapshot))
+                        lastSnapshot = snapshot
+                    }
+                    delay(intervalMs)
+                }
+            } catch (cause: Throwable) {
+                wsLogger.debug("ws/stream closed: {}", cause.message)
             }
         }
     }
+}
+
+@Serializable
+data class AdapterHealthResponse(
+    val status: String,
+    val mode: String? = null
+)
+
+/**
+ * Accept either the user-facing form ("calm late-night radio") or the legacy kebab-case form
+ * ("calm-late-night") that earlier versions documented in `.env.example`. We treat a single-token
+ * dashed value as a stylistic abbreviation and expand it back to spaces; multi-token values are
+ * passed through so styles like "low-key warm-fuzzy" aren't mangled.
+ */
+private fun normalizeHostStyle(value: String?): String? {
+    val trimmed = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    return if (' ' !in trimmed && '-' in trimmed) trimmed.replace('-', ' ') else trimmed
 }

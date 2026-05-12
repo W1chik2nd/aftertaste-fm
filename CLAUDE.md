@@ -1,32 +1,45 @@
 # Claude Code Notes
 
-Aftertaste FM is a monorepo with three runnable pieces:
+**Before you write code, read `AGENTS.md`.** It is the binding constraint document for any agent working in this repo, not orientation. The product rule, architecture boundaries, and hard rules there override anything you might infer from the source.
 
-- `services/radio-server`: Kotlin/Ktor API on port `8080`.
-- `apps/web`: React/Vite player UI on port `5173`.
-- `apps/netease-adapter`: Node/Express adapter on port `8090`.
+If a rule in `AGENTS.md` conflicts with what looks like established style in the code, the rule wins — the code is wrong and should be fixed when you next touch it.
 
-The important mental model is "radio chapter", not "song intro". Each `ShowSegment` has one `hostScript` and roughly 3 tracks. The first track is the chapter lead; the playback queue uses `HostVoiceItem(with lead Track) + TrackItem + TrackItem`, so the host can speak over the lead track's opening and then let the remaining tracks run clean.
+## Mental model
 
-v0.1 defaults to English host copy:
+Aftertaste FM is a private AI radio with three runnable services:
 
-- `hostLanguage=en-US`
-- `hostName=Aftertaste`
-- `hostStyle=calm late-night radio`
-- `segmentSpeechMode=between_segments`
+- `services/radio-server` — Kotlin + Ktor, port 8080, the brain. Owns planning, queue state, taste reads, weather, persistence, intent routing.
+- `apps/web` — React + Vite, port 5173, the player and debug UI. Talks to radio-server only.
+- `apps/netease-adapter` — Node + Express, port 8090, a thin normalizing adapter. Talks to upstream Netease APIs or runs in mock mode.
 
-Use `docs/architecture.md`, `docs/api.md`, and `docs/roadmap.md` before making broad changes.
+The product rule: the host speaks between groups of songs, not before each song. `ShowSegment` has one `hostScript` and exactly 3 tracks; the first is the chapter lead, the host can speak over its opening, then the rest plays clean. See `AGENTS.md` for the queue shape and host config defaults.
 
-The runtime recommendation path now prefers offline tagged taste data:
+## Where things live
 
-`data/taste/` -> `TasteProfileRepository` -> `CandidateSelector` -> `LlmShowPlanner` -> `PlaybackQueue`.
+- Kotlin packages are flat under `fm.aftertaste`. Files split by concern: `RadioEngine`, `PlaybackQueue`, `ShowPlanner`, `RadioAgent`, `HostVoiceService`, `LlmShowPlanner`, `LlmCompletionClient`, `LlmRuntimeConfig`, `AgentChatService`, `IntentExtractor`, `MusicProvider`, `TasteProfileRepository`, `PlaylistImportService`, `WeatherService`, `StateStore`, `HttpClients`, `Models`, `Env`, `Application`.
+- Web is split across `App.tsx` (orchestrator), `hooks/usePlayer.ts`, `components/{AgentPanel,PlaybackPanel,QueuePanel,LyricsPanel,StatusStrip}.tsx`, `utils/{format,lyrics,media}.ts`.
+- Docs: `docs/architecture.md`, `docs/api.md`, `docs/roadmap.md`.
+- Private data: `data/taste/` (gitignored). Public schema: `data/taste.example/`.
 
-`data/taste/` is private and gitignored. Use `data/taste.example/` as the public schema reference.
+## Workflow rules specific to Claude Code
 
-Do not hard-code this user's artists, playlists, or aliases in runtime code. If a user needs aliases such as a romanized artist name, put them in that user's private/generated `rules.json` under `artistAliases`.
+- **Don't propose tests when the user hasn't asked.** Tests are deferred for this project; revisit only when the user requests them.
+- **Don't change `.env`.** Real keys live there. If you need a new env var, edit `.env.example` and document it in the relevant `docs/*.md`.
+- **`gpt-5.2` is a real model in this project's context.** Do not "fix" it to `gpt-4.1-mini` or similar.
+- **Use the Plan tool for non-trivial refactors.** A single-file edit is fine to do directly; cross-service changes get a plan first.
+- **Use TaskCreate/TaskUpdate for multi-step work.** Mark each task in-progress before working on it and completed as soon as it's done — don't batch.
+- **Compile before claiming done.** `./gradlew compileKotlin` (in `services/radio-server`) plus `tsc -b` (in `apps/web`) plus `tsc --noEmit` (in `apps/netease-adapter`). All three must pass.
 
-Do not route natural language by growing frontend keyword lists. React can handle explicit playback commands, but planning/debug/tuning intent belongs in `radio-server`, ideally as typed intent routing. Design for varied user phrasing, including questions like "why do I get the same songs for the same keyword?" and convert that into tuning context rather than developer-specific special cases.
+## Read order before non-trivial changes
 
-Accuracy note: `tracks.evidence.json` is the preferred private analysis file. It stores confidence and evidence for each tag and score. Do not present weak title/artist guesses as accurate manual analysis.
+1. `AGENTS.md`
+2. `docs/architecture.md`
+3. `docs/api.md` (for any API change)
+4. The specific files you intend to touch
 
-For offline analysis, keep the taxonomy in `scripts/analyze-playlist-openai.mjs` general across languages, genres, providers, and listening contexts. Regenerate `profile.md` and `rules.json` with `scripts/build-taste-profile.mjs` after changing evidence data.
+## When in doubt
+
+- A small fix is better than a big abstraction.
+- Failing loud is better than a silent fallback.
+- Inline duplication is better than a premature interface.
+- Asking the maintainer is better than guessing past one of the hard rules in `AGENTS.md`.

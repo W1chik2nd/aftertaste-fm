@@ -2,7 +2,6 @@ package fm.aftertaste
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.engine.cio.CIO
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import kotlinx.serialization.json.Json
@@ -13,11 +12,14 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.slf4j.LoggerFactory
 import java.time.OffsetDateTime
 
-class WeatherService {
-    private val json = Json { ignoreUnknownKeys = true }
-    private val client = HttpClient(CIO)
+class WeatherService(
+    private val client: HttpClient = HttpClients.shared
+) {
+    private val logger = LoggerFactory.getLogger(WeatherService::class.java)
+    private val json: Json = HttpClients.sharedJson
     private val openWeatherApiKey = Env.value("OPENWEATHER_API_KEY")
     private val openWeatherGeoBaseUrl = Env.value("OPENWEATHER_GEO_BASE_URL") ?: "https://api.openweathermap.org/geo/1.0"
     private val openWeatherBaseUrl = Env.value("OPENWEATHER_BASE_URL") ?: "https://api.openweathermap.org/data/2.5"
@@ -51,7 +53,7 @@ class WeatherService {
                 latitude = result["lat"]?.jsonPrimitive?.doubleOrNull ?: return null,
                 longitude = result["lon"]?.jsonPrimitive?.doubleOrNull ?: return null
             )
-        }.getOrNull()
+        }.onFailure { logger.debug("OpenWeather geocode failed: {}", it.message) }.getOrNull()
     }
 
     private suspend fun forecast(latitude: Double, longitude: Double): WeatherSnapshot? {
@@ -84,7 +86,7 @@ class WeatherService {
                 },
                 fetchedAt = OffsetDateTime.now().toString()
             )
-        }.getOrNull()
+        }.onFailure { logger.debug("OpenWeather forecast failed: {}", it.message) }.getOrNull()
     }
 
     private fun precipitation(root: JsonObject): Double? {

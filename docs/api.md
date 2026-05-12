@@ -8,6 +8,10 @@ Base URL: `http://localhost:8080`
 
 Returns radio-server status, provider name, and host config.
 
+`GET /api/health/adapter`
+
+Returns the netease-adapter status via the radio-server (so the web client never talks to the adapter directly). Response shape: `{"status":"ok|offline|...","mode":"mock|external-api|local-package|null"}`.
+
 ## Now Playing
 
 `GET /api/now`
@@ -89,6 +93,18 @@ Body:
 ```
 
 Returns a newly planned show and updated queue. The mock planner uses the message as mood guidance.
+
+`POST /api/agent/chat`
+
+Body:
+
+```json
+{
+  "message": "skip this"
+}
+```
+
+Routes a free-form user message through the agent. The response is `{ "message": "...", "mode": "...", "shouldPlan": false, "command": "next" | "previous" | "pause" | "play" | "now" | null }`. When `shouldPlan` is true, the client may call `POST /api/chat` with the same message to materialize a new show. When `command` is set, the engine has already applied that playback action.
 
 ## Playlists
 

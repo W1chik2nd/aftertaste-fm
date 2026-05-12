@@ -32,7 +32,7 @@ sequenceDiagram
 - `TasteProfileRepository`: loads offline profile, rules, and tagged tracks from `data/taste/`, falling back to `data/taste.example/`.
 - `CandidateSelector`: scores tagged tracks against the current request and returns a small candidate pool for the planner.
 - `ShowPlan`: title, date, host config, and multiple `ShowSegment` values.
-- `ShowSegment`: one chapter title, one `hostScript`, and 3-6 tracks. The first track is the chapter lead for host voice-over.
+- `ShowSegment`: one chapter title, one `hostScript`, and exactly 3 tracks (segments with fewer valid trackIds are dropped rather than padded). The first track is the chapter lead for host voice-over.
 - `PlaybackQueue`: flattened playable order. Host voice is an item, but it is not attached to every track.
 - `MusicProvider`: the only interface the radio brain uses for music data.
 - `HostVoiceService`: generates and synthesizes host scripts. v0.1 has mock TTS and returns text/cache keys.
@@ -58,7 +58,7 @@ flowchart TD
 
 v0.1 implementation:
 
-- `RadioAgent.buildContext(...)` extracts simple signals from the prompt, such as quiet energy, late-night coding, Chinese indie, or "less sad".
+- `IntentExtractor.extract(...)` is the single place that turns the user prompt into a typed `RoutingIntent` (language, energy, routine, moodTag, avoid, artists). `RadioAgent.buildContext(...)` then attaches it to the context. Downstream (`CandidateSelector`, `LlmShowPlanner` user prompt) reads the typed fields rather than parsing signal strings again.
 - `StateStore` writes local memory to SQLite `state.db`: current app state, recent messages, play events, generated plans, and prefs.
 - `TasteProfileRepository` loads offline tagged tracks.
 - `CandidateSelector` ranks those tracks by tags, language, energy, valence, night score, coding score, and skip risk.
