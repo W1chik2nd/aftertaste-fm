@@ -94,7 +94,7 @@ class NeteaseMusicProvider(
 
     override suspend fun getStreamUrl(trackId: String): StreamUrl =
         runCatching { client.get("$baseUrl/song/url?id=${trackId.encodeURLParameter()}").body<StreamUrl>() }
-            .getOrElse { StreamUrl("netease", trackId, url = null, reason = "unknown") }
+            .getOrElse { StreamUrl("netease", trackId, url = null, reason = "adapter_unreachable") }
 
     override suspend fun getStreamUrls(trackIds: List<String>): List<StreamUrl> {
         if (trackIds.isEmpty()) return emptyList()
@@ -103,7 +103,7 @@ class NeteaseMusicProvider(
             val text = client.get("$baseUrl/song/url?id=$ids").body<String>()
             parser.decodeFromString(ListSerializer(StreamUrl.serializer()), text)
         }.getOrElse {
-            trackIds.map { trackId -> StreamUrl("netease", trackId, url = null, reason = "unknown") }
+            trackIds.map { trackId -> StreamUrl("netease", trackId, url = null, reason = "adapter_unreachable") }
         }
     }
 

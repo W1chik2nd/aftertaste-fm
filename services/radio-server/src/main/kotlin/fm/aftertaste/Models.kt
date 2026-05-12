@@ -242,6 +242,13 @@ data class SettingsResponse(
 )
 
 @Serializable
+data class LyricsResponse(
+    val provider: String,
+    val trackId: String,
+    val lyrics: String? = null
+)
+
+@Serializable
 data class ShowSegment(
     val id: String,
     val title: String,
@@ -299,7 +306,9 @@ data class ChatRequest(val message: String)
 @Serializable
 data class AgentChatResponse(
     val message: String,
-    val mode: String
+    val mode: String,
+    val shouldPlan: Boolean = false,
+    val command: String? = null
 )
 
 @Serializable

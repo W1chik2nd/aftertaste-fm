@@ -25,6 +25,8 @@ The runtime recommendation path now prefers offline tagged taste data:
 
 Do not hard-code this user's artists, playlists, or aliases in runtime code. If a user needs aliases such as a romanized artist name, put them in that user's private/generated `rules.json` under `artistAliases`.
 
+Do not route natural language by growing frontend keyword lists. React can handle explicit playback commands, but planning/debug/tuning intent belongs in `radio-server`, ideally as typed intent routing. Design for varied user phrasing, including questions like "why do I get the same songs for the same keyword?" and convert that into tuning context rather than developer-specific special cases.
+
 Accuracy note: `tracks.evidence.json` is the preferred private analysis file. It stores confidence and evidence for each tag and score. Do not present weak title/artist guesses as accurate manual analysis.
 
 For offline analysis, keep the taxonomy in `scripts/analyze-playlist-openai.mjs` general across languages, genres, providers, and listening contexts. Regenerate `profile.md` and `rules.json` with `scripts/build-taste-profile.mjs` after changing evidence data.

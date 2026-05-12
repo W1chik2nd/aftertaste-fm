@@ -415,7 +415,8 @@ class RadioEngine(
 
     suspend fun planToday(mood: String? = null): PlanResponse {
         refreshWeatherForPlanning()
-        val context = withWeather(agent.buildContext(mood, hostConfig))
+        val context = withMemory(withWeather(agent.buildContext(mood, hostConfig)))
+        store.rememberMessage("user", mood ?: "Generate today's show.")
         val candidateSelection = candidateSelector.select(context)
         val tracks = if (candidateSelection.tracks.isNotEmpty()) {
             candidateSelection.tracks.map { it.toTrack() }
@@ -431,6 +432,7 @@ class RadioEngine(
         )
         activePlan = hydratePlanStreams(llmPlan?.toShowPlan(tracks, hostConfig) ?: planner.plan(tracks, context))
         queue.load(activePlan!!)
+        store.rememberPlan(activePlan!!)
         persist()
         val plannerMode = if (llmPlan == null) "mock-radio-agent" else llmPlanner.mode
         return PlanResponse(
@@ -449,17 +451,46 @@ class RadioEngine(
 
     fun now(): PlaybackState = queue.state()
 
-    fun play(): PlaybackState = queue.play().also { persist() }
+    fun play(): PlaybackState =
+        queue.play().also {
+            store.rememberPlayback("play", it.currentItem)
+            persist()
+        }
 
-    fun pause(): PlaybackState = queue.pause().also { persist() }
+    fun pause(): PlaybackState =
+        queue.pause().also {
+            store.rememberPlayback("pause", it.currentItem)
+            persist()
+        }
 
-    fun next(): PlaybackState = queue.next().also { persist() }
+    fun next(): PlaybackState =
+        queue.next().also {
+            store.rememberPlayback("next", it.currentItem)
+            persist()
+        }
 
-    fun previous(): PlaybackState = queue.previous().also { persist() }
+    fun previous(): PlaybackState =
+        queue.previous().also {
+            store.rememberPlayback("previous", it.currentItem)
+            persist()
+        }
+
+    fun handleCommand(command: String): PlaybackState? =
+        when (command) {
+            "next" -> next()
+            "previous" -> previous()
+            "pause" -> pause()
+            "play" -> play()
+            else -> null
+        }
 
     fun clearPlayback(): PlaybackState {
         activePlan = null
         return queue.clear().also { persist() }
+    }
+
+    fun rememberMessage(role: String, content: String) {
+        store.rememberMessage(role, content)
     }
 
     fun settings(): SettingsResponse =
@@ -485,6 +516,9 @@ class RadioEngine(
 
     suspend fun playlist(id: String): Playlist = provider.getPlaylist(id)
 
+    suspend fun lyrics(trackId: String): LyricsResponse =
+        LyricsResponse(provider = provider.name, trackId = trackId, lyrics = provider.getLyrics(trackId))
+
     suspend fun importPlaylist(source: String): ImportPlaylistResponse {
         val id = extractPlaylistId(source)
         val playlist = importProvider.getPlaylist(id)
@@ -509,6 +543,12 @@ class RadioEngine(
             weather = weather,
             recentSignals = context.recentSignals + listOf("weather=$summary")
         )
+    }
+
+    private fun withMemory(context: RecommendationContext): RecommendationContext {
+        val memory = store.recentMemory()
+        if (memory.isEmpty()) return context
+        return context.copy(recentSignals = context.recentSignals + memory)
     }
 
     private fun weatherSummary(weather: WeatherSnapshot): String {

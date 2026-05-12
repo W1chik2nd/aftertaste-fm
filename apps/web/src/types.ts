@@ -65,6 +65,12 @@ export type SettingsResponse = {
   weather?: WeatherSnapshot | null;
 };
 
+export type LyricsResponse = {
+  provider: string;
+  trackId: string;
+  lyrics?: string | null;
+};
+
 export type AgentTrace = {
   mode: string;
   summary: string;
@@ -90,4 +96,6 @@ export type PlanResponse = {
 export type AgentChatResponse = {
   message: string;
   mode: string;
+  shouldPlan?: boolean;
+  command?: "next" | "previous" | "pause" | "play" | "now" | null;
 };

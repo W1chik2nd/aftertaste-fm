@@ -11,10 +11,12 @@ import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -238,43 +240,63 @@ class AgentChatService(
     private val completionClient = config?.let { LlmCompletionClient(it, json) }
 
     suspend fun reply(message: String, playback: PlaybackState, hostConfig: HostConfig): AgentChatResponse {
+        val fallbackDecision = fallbackReply(message, playback)
+        val fallbackMessage = fallbackDecision.message
+            ?: "Tell me what the room needs, and I can build a hosted radio chapter around it."
         val runtimeConfig = config ?: return AgentChatResponse(
-            message = fallbackReply(message, playback),
+            message = fallbackMessage,
+            shouldPlan = fallbackDecision.shouldPlan,
+            command = fallbackDecision.command,
             mode = "local-fallback"
         )
         val client = completionClient ?: return AgentChatResponse(
-            message = fallbackReply(message, playback),
+            message = fallbackMessage,
+            shouldPlan = fallbackDecision.shouldPlan,
+            command = fallbackDecision.command,
             mode = "local-fallback"
         )
 
         return runCatching {
-            val output = client.complete(
-                chatSystemPrompt(hostConfig),
-                chatUserPrompt(message, playback),
-                maxTokens = 220,
-                jsonMode = false,
-                responseSchema = null
+            val intent = client.complete(
+                intentSystemPrompt(hostConfig),
+                intentUserPrompt(message, playback),
+                maxTokens = 320,
+                jsonMode = true,
+                responseSchema = agentIntentSchema()
             )
                 ?.trim()
-                ?.take(900)
                 ?.takeIf { it.isNotBlank() }
-                ?: fallbackReply(message, playback)
-            AgentChatResponse(message = output, mode = "llm-chat:${runtimeConfig.displayName}")
+                ?.let { parseAgentIntent(it, fallbackMessage) }
+                ?: fallbackDecision
+            AgentChatResponse(
+                message = intent.message?.take(900)?.ifBlank { fallbackMessage } ?: fallbackMessage,
+                mode = "llm-chat:${runtimeConfig.displayName}",
+                shouldPlan = intent.shouldPlan,
+                command = intent.command
+            )
         }.getOrElse {
-            AgentChatResponse(message = fallbackReply(message, playback), mode = "local-fallback")
+            AgentChatResponse(
+                message = fallbackMessage,
+                shouldPlan = fallbackDecision.shouldPlan,
+                command = fallbackDecision.command,
+                mode = "local-fallback"
+            )
         }
     }
 
-    private fun chatSystemPrompt(hostConfig: HostConfig): String =
+    private fun intentSystemPrompt(hostConfig: HostConfig): String =
         """
-        You are Aftertaste, the private AI radio host inside a music player.
-        Reply to ordinary user chat in ${hostConfig.hostLanguage}, usually in 1-3 short sentences.
-        Be useful and warm, but do not generate a new playlist unless the user explicitly asks to change music, mood, language, energy, or show direction.
-        If asked what you can do, explain that you can tune the station, skip/pause/resume playback, discuss the current track, and build hosted radio chapters.
+        You are Aftertaste, the private AI radio host and intent router inside a music player.
+        Interpret the user's full message semantically across languages; do not rely on a fixed keyword list.
+        Reply in ${hostConfig.hostLanguage}, usually in 1-3 short sentences.
+        Decide shouldPlan=true when the user asks to create, change, retune, debug, diversify, or otherwise affect the music/show direction.
+        Decide command only for clear playback controls: next, previous, pause, play, or now.
+        For recommendation complaints such as repeated songs for the same request, acknowledge the issue and set shouldPlan=true when the user wants a correction or retune.
         Avoid product-planning jargon and avoid claiming facts about a song unless they are present in the current playback context.
+        Return only JSON: {"message":"...","shouldPlan":false,"command":null}
         """.trimIndent()
 
-    private fun chatUserPrompt(message: String, playback: PlaybackState): String =
+    private fun intentUserPrompt(message: String, playback: PlaybackState): String =
         """
         Current show: ${playback.showTitle ?: "none"}
         Current item type: ${playback.currentItem?.type ?: "none"}
@@ -283,9 +305,55 @@ class AgentChatService(
         User message: $message
         """.trimIndent()
 
-    private fun fallbackReply(message: String, playback: PlaybackState): String {
+    private fun parseAgentIntent(output: String, fallbackMessage: String): AgentIntentDecision =
+        runCatching {
+            val parsed = json.decodeFromString<AgentIntentOutput>(output)
+            AgentIntentDecision(
+                message = parsed.message.take(900).ifBlank { fallbackMessage },
+                shouldPlan = parsed.shouldPlan,
+                command = parsed.command?.takeIf { it in playbackCommands }
+            )
+        }.getOrElse {
+            AgentIntentDecision(message = fallbackMessage)
+        }
+
+    private fun agentIntentSchema(): JsonObject = buildJsonObject {
+        put("type", "json_schema")
+        put("name", "aftertaste_agent_intent")
+        put("strict", true)
+        put("schema", buildJsonObject {
+            put("type", "object")
+            put("additionalProperties", false)
+            put("required", buildJsonArray {
+                add(JsonPrimitive("message"))
+                add(JsonPrimitive("shouldPlan"))
+                add(JsonPrimitive("command"))
+            })
+            put("properties", buildJsonObject {
+                put("message", stringSchema())
+                put("shouldPlan", buildJsonObject {
+                    put("type", "boolean")
+                })
+                put("command", buildJsonObject {
+                    put("type", buildJsonArray {
+                        add(JsonPrimitive("string"))
+                        add(JsonPrimitive("null"))
+                    })
+                    put("enum", buildJsonArray {
+                        playbackCommands.forEach { add(JsonPrimitive(it)) }
+                        add(JsonNull)
+                    })
+                })
+            })
+        })
+    }
+
+    private fun fallbackReply(message: String, playback: PlaybackState): AgentIntentDecision {
+        val decision = fallbackDecision(message, playback)
+        if (decision.message != null) return decision
+
         val lower = message.lowercase()
-        return when {
+        val reply = when {
             "help" in lower || "what can you" in lower ->
                 "I can tune the station by mood, language, energy, or scene; skip, pause, resume, or go back; and talk about what is playing. Try something like \"more English and less sad\" or \"quiet songs for late-night coding.\""
             playback.currentItem != null ->
@@ -293,6 +361,7 @@ class AgentChatService(
             else ->
                 "Tell me what the room needs, and I can build a hosted radio chapter around it."
         }
+        return decision.copy(message = reply)
     }
 
     companion object {
@@ -300,6 +369,52 @@ class AgentChatService(
             AgentChatService(LlmRuntimeConfig.fromEnvironment(LlmUseCase.Chat))
     }
 }
+
+@Serializable
+private data class AgentIntentOutput(
+    val message: String = "",
+    val shouldPlan: Boolean = false,
+    val command: String? = null
+)
+
+private data class AgentIntentDecision(
+    val message: String? = null,
+    val shouldPlan: Boolean = false,
+    val command: String? = null
+)
+
+private val playbackCommands = setOf("next", "previous", "pause", "play", "now")
+
+private fun fallbackDecision(message: String, playback: PlaybackState): AgentIntentDecision {
+    val text = message.trim().lowercase()
+    if (isExplicitCommand(text, listOf("next", "skip", "skip this", "下一首", "换歌", "跳过"))) {
+        return AgentIntentDecision(message = "Skipping to the next item.", command = "next")
+    }
+    if (isExplicitCommand(text, listOf("previous", "prev", "back", "上一首", "回上一首"))) {
+        return AgentIntentDecision(message = "Going back one item.", command = "previous")
+    }
+    if (isExplicitCommand(text, listOf("pause", "stop", "暂停", "停一下"))) {
+        return AgentIntentDecision(message = "Paused.", command = "pause")
+    }
+    if (isExplicitCommand(text, listOf("play", "resume", "continue", "继续", "播放"))) {
+        return AgentIntentDecision(message = "Playing.", command = "play")
+    }
+    if (isExplicitCommand(text, listOf("what's playing", "what is playing", "now playing", "这是什么", "现在放什么", "正在放什么"))) {
+        val current = playback.currentItem
+        val track = current?.track
+        val now = if (track != null) {
+            "On air: ${track.title} by ${track.artist}."
+        } else {
+            "Nothing is on air yet. Generate a show first."
+        }
+        return AgentIntentDecision(message = now, command = "now")
+    }
+
+    return AgentIntentDecision()
+}
+
+private fun isExplicitCommand(text: String, commands: List<String>): Boolean =
+    commands.any { command -> text == command || text == "$command." || text == "$command please" }
 
 enum class LlmUseCase {
     Planner,

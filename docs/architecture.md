@@ -45,6 +45,7 @@ The recommendation system follows the "construction diagram" mental model:
 flowchart TD
   Taste["Taste profile\nplaylists, likes, skips"] --> Context["Context window"]
   Routine["Routines\ntime, mood, daily rhythm"] --> Context
+  Memory["state.db\nmessages, plays, plans, prefs"] --> Context
   Chat["User chat\nnatural-language tuning"] --> Router["Intent router"]
   Provider["MusicProvider\nsearch, playlists, recommendations"] --> Candidates["Candidate tracks"]
   Router --> Context
@@ -58,6 +59,7 @@ flowchart TD
 v0.1 implementation:
 
 - `RadioAgent.buildContext(...)` extracts simple signals from the prompt, such as quiet energy, late-night coding, Chinese indie, or "less sad".
+- `StateStore` writes local memory to SQLite `state.db`: current app state, recent messages, play events, generated plans, and prefs.
 - `TasteProfileRepository` loads offline tagged tracks.
 - `CandidateSelector` ranks those tracks by tags, language, energy, valence, night score, coding score, and skip risk.
 - `MusicProvider.getRecommendations(context)` returns normalized candidate tracks only when no local taste pool exists.
@@ -70,7 +72,7 @@ v0.1 implementation:
 Future implementation:
 
 - Replace signal extraction with an LLM router that returns typed JSON.
-- Load real taste profile and routine files into the context window.
+- Load routine files into the context window.
 - Add a ranking stage that scores candidate tracks by taste fit, novelty, energy, language, recency, and skip history.
 - Pass only the selected candidate pool and compact evidence summary to the runtime LLM, not full raw imports or full lyrics.
 - Keep the same queue invariant: the host speaks once per chapter, usually over the lead track opening, not before every track.
@@ -121,16 +123,17 @@ The Node adapter supports three modes:
 - `external-api`: uses `NETEASE_API_BASE`.
 - `local-package`: uses the bundled `NeteaseCloudMusicApi` npm package when `MOCK_NETEASE=false` and no external base URL is configured.
 
-## State
+## State And Memory
 
-v0.1 uses in-memory state and writes snapshots to `services/radio-server/data/state.json`. This is intentionally simple but shaped for SQLite migration:
+Runtime state and memory live in `services/radio-server/data/state.db` by default. The database is intentionally local and private. It has small, explicit tables that match the construction diagram:
 
-- user preferences
-- taste profile
-- play history
-- current queue
-- generated show plans
-- TTS cache index
+- `app_state`: the current show plan, queue, and settings snapshot.
+- `messages`: recent user and agent messages.
+- `plays`: play, pause, next, and previous events with compact track metadata.
+- `plans`: generated show plans as JSON for audit and later retrieval.
+- `prefs`: user preferences such as weather location.
+
+Prompt construction does not send the whole database. `RadioEngine` retrieves a small memory window from `StateStore.recentMemory()` and adds it to `RecommendationContext.recentSignals`; the LLM planner receives only those compact fragments plus the selected candidate pool.
 
 ## Host Language
 

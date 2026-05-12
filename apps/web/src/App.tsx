@@ -36,6 +36,12 @@ type ChatMessage = {
   text: string;
 };
 
+type LyricLine = {
+  id: string;
+  time: number | null;
+  text: string;
+};
+
 function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const voiceRef = useRef<HTMLAudioElement | null>(null);
@@ -57,8 +63,11 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [progressSeconds, setProgressSeconds] = useState(0);
   const [durationSeconds, setDurationSeconds] = useState(0);
+  const [lyricsRaw, setLyricsRaw] = useState<string | null>(null);
+  const [lyricsLoading, setLyricsLoading] = useState(false);
 
   const current = playback.currentItem;
+  const lyricTrack = current?.track ?? null;
   const mainMediaUrl = resolveMediaUrl(
     current?.type === "track" ? current.track?.streamUrl : current?.track?.streamUrl ?? current?.ttsUrl
   );
@@ -75,6 +84,11 @@ function App() {
   const upcoming = useMemo(
     () => playback.queue.slice(playback.currentIndex + 1, playback.currentIndex + 7),
     [playback.currentIndex, playback.queue]
+  );
+  const lyricLines = useMemo(() => parseLyrics(lyricsRaw), [lyricsRaw]);
+  const activeLyricIndex = useMemo(
+    () => activeLyricLineIndex(lyricLines, progressSeconds),
+    [lyricLines, progressSeconds]
   );
 
   useEffect(() => {
@@ -119,6 +133,30 @@ function App() {
     voice.currentTime = 0;
     voice.load();
   }, [current?.id, voiceOverlayUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLyricsRaw(null);
+    setLyricsLoading(false);
+
+    if (!lyricTrack?.id) return;
+
+    setLyricsLoading(true);
+    void radioApi.lyrics(lyricTrack.id)
+      .then((response) => {
+        if (!cancelled) setLyricsRaw(response.lyrics?.trim() || null);
+      })
+      .catch(() => {
+        if (!cancelled) setLyricsRaw(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLyricsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [lyricTrack?.id]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -232,50 +270,21 @@ function App() {
     setMessages((currentMessages) => [...currentMessages, { role: "user", text: message }]);
     setMood("");
 
-    const quickIntent = classifyQuickIntent(message);
-    if (quickIntent === "next") {
-      await advanceToNext(false);
-      return;
-    }
-    if (quickIntent === "previous") {
-      await run(radioApi.previous);
-      return;
-    }
-    if (quickIntent === "pause") {
-      await run(radioApi.pause);
-      return;
-    }
-    if (quickIntent === "play") {
-      await run(radioApi.play);
-      return;
-    }
-    if (quickIntent === "now") {
-      setMessages((currentMessages) => [
-        ...currentMessages,
-        {
-          role: "agent",
-          text: current
-            ? `On air: ${current.type === "host_voice" ? current.track?.title ?? current.segmentTitle : current.track?.title} ${current.track?.artist ? `by ${current.track.artist}` : ""}.`
-            : "Nothing is on air yet. Generate a show first."
-        }
-      ]);
-      return;
-    }
-
-    if (isPlanningRequest(message)) {
-      await run(() => radioApi.chat(message));
-      return;
-    }
-
-    await replyToOrdinaryChat(message);
+    await sendAgentMessage(message);
   }
 
-  async function replyToOrdinaryChat(message: string) {
+  async function sendAgentMessage(message: string) {
     setBusy(true);
     setError(null);
     try {
       const response = await radioApi.agentChat(message);
       setMessages((currentMessages) => [...currentMessages, { role: "agent", text: response.message }]);
+      if (response.command && response.command !== "now") {
+        await radioApi.now().then(setPlayback);
+      }
+      if (response.shouldPlan) {
+        await run(() => radioApi.chat(message));
+      }
     } catch (event) {
       setError(event instanceof Error ? event.message : "Chat failed.");
     } finally {
@@ -391,6 +400,15 @@ function App() {
           </div>
 
           {current ? <CurrentItem item={current} /> : <EmptyCurrent />}
+
+          {current?.track ? (
+            <LyricsPanel
+              lines={lyricLines}
+              activeIndex={activeLyricIndex}
+              loading={lyricsLoading}
+              trackTitle={current.track.title}
+            />
+          ) : null}
 
           {error ? (
             <div className="inline-error">
@@ -596,6 +614,59 @@ function QueueRow({ item }: { item: QueueItem }) {
   );
 }
 
+function LyricsPanel({
+  lines,
+  activeIndex,
+  loading,
+  trackTitle
+}: {
+  lines: LyricLine[];
+  activeIndex: number;
+  loading: boolean;
+  trackTitle: string;
+}) {
+  const activeRef = useRef<HTMLParagraphElement | null>(null);
+
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [activeIndex]);
+
+  if (loading) {
+    return (
+      <section className="lyrics-panel" aria-label={`Lyrics for ${trackTitle}`}>
+        <span>Lyrics</span>
+        <p className="lyrics-muted">Loading lyrics...</p>
+      </section>
+    );
+  }
+
+  if (!lines.length) {
+    return (
+      <section className="lyrics-panel" aria-label={`Lyrics for ${trackTitle}`}>
+        <span>Lyrics</span>
+        <p className="lyrics-muted">No synced lyrics available.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="lyrics-panel" aria-label={`Lyrics for ${trackTitle}`}>
+      <span>Lyrics</span>
+      <div className="lyrics-scroll">
+        {lines.map((line, index) => (
+          <p
+            key={line.id}
+            ref={index === activeIndex ? activeRef : null}
+            className={index === activeIndex ? "active" : ""}
+          >
+            {line.text}
+          </p>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function StatusCell({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="status-cell">
@@ -612,53 +683,57 @@ function weatherLabel(settings: SettingsResponse | null) {
   return `${weather.locationName} · ${weather.condition}, ${Math.round(weather.temperatureC)}C`;
 }
 
-type QuickIntent = "next" | "previous" | "pause" | "play" | "now" | null;
-
-function classifyQuickIntent(message: string): QuickIntent {
-  const text = message.trim().toLowerCase();
-  if (/^(next|skip|skip this|下一首|换歌|跳过)$/.test(text)) return "next";
-  if (/^(previous|prev|back|上一首|回上一首)$/.test(text)) return "previous";
-  if (/^(pause|stop|暂停|停一下)$/.test(text)) return "pause";
-  if (/^(play|resume|continue|继续|播放)$/.test(text)) return "play";
-  if (/^(what'?s playing|what is playing|now playing|这是什么|现在放什么|正在放什么)$/.test(text)) return "now";
-  return null;
-}
-
-function isPlanningRequest(message: string) {
-  const text = message.toLowerCase();
-  return [
-    "play ",
-    "give me",
-    "i want",
-    "i'd like",
-    "more ",
-    "less ",
-    "something",
-    "song",
-    "songs",
-    "music",
-    "playlist",
-    "show",
-    "radio",
-    "english",
-    "chinese",
-    "中文",
-    "英文",
-    "安静",
-    "悲伤",
-    "开心",
-    "换一组",
-    "来点",
-    "想听",
-    "推荐"
-  ].some((token) => text.includes(token));
-}
-
 function formatTime(value: number) {
   if (!Number.isFinite(value) || value <= 0) return "0:00";
   const minutes = Math.floor(value / 60);
   const seconds = Math.floor(value % 60);
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function parseLyrics(raw: string | null): LyricLine[] {
+  if (!raw) return [];
+  const timed: LyricLine[] = [];
+  const plain: string[] = [];
+  const timePattern = /\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
+
+  raw.split(/\r?\n/).forEach((line, lineIndex) => {
+    const trimmed = line.trim();
+    if (!trimmed || /^\[(ar|al|ti|by|offset|kana|tool):/i.test(trimmed)) return;
+
+    const matches = [...trimmed.matchAll(timePattern)];
+    const text = trimmed.replace(timePattern, "").trim();
+    if (!matches.length) {
+      if (text) plain.push(text);
+      return;
+    }
+    if (!text) return;
+
+    matches.forEach((match, matchIndex) => {
+      const minutes = Number(match[1]);
+      const seconds = Number(match[2]);
+      const fraction = match[3] ? Number(`0.${match[3].padEnd(3, "0").slice(0, 3)}`) : 0;
+      timed.push({
+        id: `${lineIndex}-${matchIndex}-${minutes}-${seconds}`,
+        time: minutes * 60 + seconds + fraction,
+        text
+      });
+    });
+  });
+
+  if (timed.length) return timed.sort((left, right) => (left.time ?? 0) - (right.time ?? 0));
+  return plain.map((text, index) => ({ id: `plain-${index}`, time: null, text }));
+}
+
+function activeLyricLineIndex(lines: LyricLine[], currentTime: number) {
+  if (!lines.some((line) => line.time != null)) return -1;
+  let active = 0;
+  for (let index = 0; index < lines.length; index += 1) {
+    const time = lines[index].time;
+    if (time == null) continue;
+    if (time <= currentTime + 0.25) active = index;
+    else break;
+  }
+  return active;
 }
 
 export default App;

@@ -45,3 +45,10 @@ Offline taste data:
 - Runtime flow should prefer `TasteProfileRepository -> CandidateSelector -> LLM planner`.
 - Do not send an entire listening history to the runtime LLM call. Select a small candidate pool first.
 - Keep recommendation logic user-agnostic. Do not hard-code Xavier's artists, playlists, tags, or aliases in Kotlin/TypeScript core code. User-specific artist aliases belong in private `data/taste/rules.json` or generated taste data, not in `TasteProfileRepository`, `RadioAgent`, or planner prompts.
+
+Intent and product behavior:
+
+- Build for all users, not just the current developer. Do not hard-code a growing list of guessed words in React or core planning code as a substitute for understanding user intent.
+- React may handle only explicit player commands and UI actions. Natural-language interpretation belongs in `radio-server`.
+- When users ask why recommendations repeat, ask for variety, compare results, or describe a failure mode, the agent should treat that as tuning/debug context and adjust planning signals or explain behavior instead of relying on fixed keyword buckets.
+- Prefer typed intent routing and context assembly over ad hoc substring checks. If a temporary heuristic is needed, keep it server-side, small, documented, and easy to replace with an LLM/router.

@@ -96,6 +96,10 @@ Returns a newly planned show and updated queue. The mock planner uses the messag
 
 Fetches normalized playlist metadata through the active `MusicProvider`.
 
+`GET /api/lyrics/{id}`
+
+Fetches lyrics for a track through the active `MusicProvider`. Providers may return LRC-style synced lyrics, plain text, or `null` when lyrics are unavailable.
+
 `POST /api/import/playlist`
 
 Body:

@@ -123,12 +123,21 @@ fun Application.module() {
 
             post("/agent/chat") {
                 val request = call.receive<ChatRequest>()
-                call.respond(agentChat.reply(request.message, engine.now(), hostConfig))
+                engine.rememberMessage("user", request.message)
+                val response = agentChat.reply(request.message, engine.now(), hostConfig)
+                response.command?.let { engine.handleCommand(it) }
+                engine.rememberMessage("agent", response.message)
+                call.respond(response)
             }
 
             get("/playlist/{id}") {
                 val id = call.parameters["id"].orEmpty()
                 call.respond(engine.playlist(id))
+            }
+
+            get("/lyrics/{id}") {
+                val id = call.parameters["id"].orEmpty()
+                call.respond(engine.lyrics(id))
             }
 
             post("/import/playlist") {

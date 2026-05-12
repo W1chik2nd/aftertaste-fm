@@ -1,4 +1,4 @@
-import type { AgentChatResponse, HealthResponse, PlanResponse, PlaybackState, SettingsResponse } from "./types";
+import type { AgentChatResponse, HealthResponse, LyricsResponse, PlanResponse, PlaybackState, SettingsResponse } from "./types";
 
 const API_BASE = import.meta.env.VITE_RADIO_API_BASE ?? "http://localhost:8080";
 
@@ -46,6 +46,7 @@ export const radioApi = {
       method: "POST",
       body: JSON.stringify({ message })
     }),
+  lyrics: (trackId: string) => request<LyricsResponse>(`/api/lyrics/${encodeURIComponent(trackId)}`),
   play: () => request<PlaybackState>("/api/play", { method: "POST" }),
   pause: () => request<PlaybackState>("/api/pause", { method: "POST" }),
   next: () => request<PlaybackState>("/api/next", { method: "POST" }),

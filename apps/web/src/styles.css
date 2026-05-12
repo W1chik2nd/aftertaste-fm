@@ -446,6 +446,51 @@ button {
   color: #86868b;
 }
 
+.lyrics-panel {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.lyrics-panel > span {
+  color: #6e6e73;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.lyrics-scroll {
+  height: clamp(150px, 19vh, 230px);
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  padding: 56px 4px;
+  scroll-behavior: smooth;
+  mask-image: linear-gradient(transparent, black 22%, black 78%, transparent);
+}
+
+.lyrics-scroll p,
+.lyrics-muted {
+  margin: 0;
+  color: #86868b;
+  font-size: clamp(1rem, 1.35vw, 1.2rem);
+  line-height: 1.42;
+  font-weight: 650;
+  transition: color 180ms ease, transform 180ms ease;
+}
+
+.lyrics-scroll p.active {
+  color: #1d1d1f;
+  transform: translateX(4px);
+}
+
+.lyrics-muted {
+  padding: 20px 0 36px;
+  color: #86868b;
+}
+
 .inline-error,
 .unavailable {
   display: flex;

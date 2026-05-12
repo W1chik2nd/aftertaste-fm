@@ -27,5 +27,6 @@ dependencies {
     implementation("io.ktor:ktor-client-core-jvm:$ktorVersion")
     implementation("io.ktor:ktor-client-cio-jvm:$ktorVersion")
     implementation("io.ktor:ktor-client-content-negotiation-jvm:$ktorVersion")
+    implementation("org.xerial:sqlite-jdbc:3.46.1.0")
     implementation("ch.qos.logback:logback-classic:1.5.6")
 }
