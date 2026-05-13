@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { radioApi } from "../../api";
 import type { AnalysisJobView, ImportPlaylistResponse, ImportRecord } from "../../types";
+import { ExternalAnalysisDialog } from "./ExternalAnalysisDialog";
 import { ExternalJsonImport } from "./ExternalJsonImport";
 import { ImportRow } from "./ImportRow";
 import { NeteaseUserRecordImport } from "./NeteaseUserRecordImport";
@@ -22,6 +23,7 @@ export function ImportView({ onError, onLibraryChanged }: Props) {
   const [recordImporting, setRecordImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportPlaylistResponse | null>(null);
   const [busySlug, setBusySlug] = useState<string | null>(null);
+  const [externalAnalysisRow, setExternalAnalysisRow] = useState<ImportRecord | null>(null);
   const [forceReanalyze, setForceReanalyze] = useState(false);
 
   const hasRunningJob = useMemo(
@@ -220,11 +222,19 @@ export function ImportView({ onError, onLibraryChanged }: Props) {
             onAnalyze={() => void analyze(row)}
             onCancel={() => void cancel(row)}
             onDelete={() => void deleteImport(row)}
-            onDownloadDraft={() => void downloadDraft(row)}
-            onDownloadLyrics={() => void downloadLyrics(row)}
+            onExternalAnalysis={() => setExternalAnalysisRow(row)}
           />
         ))}
       </div>
+      {externalAnalysisRow ? (
+        <ExternalAnalysisDialog
+          row={externalAnalysisRow}
+          onClose={() => setExternalAnalysisRow(null)}
+          onDownloadDraft={() => void downloadDraft(externalAnalysisRow)}
+          onDownloadLyrics={() => void downloadLyrics(externalAnalysisRow)}
+          onError={onError}
+        />
+      ) : null}
     </section>
   );
 }

@@ -1,4 +1,4 @@
-import { AlertCircle, Download, FileJson, Loader2, Square, Trash2, WandSparkles } from "lucide-react";
+import { AlertCircle, FileJson, Loader2, Square, Trash2, WandSparkles } from "lucide-react";
 import type { AnalysisJobView, ImportRecord } from "../../types";
 
 type Props = {
@@ -9,11 +9,10 @@ type Props = {
   onAnalyze: () => void;
   onCancel: () => void;
   onDelete: () => void;
-  onDownloadDraft: () => void;
-  onDownloadLyrics: () => void;
+  onExternalAnalysis: () => void;
 };
 
-export function ImportRow({ row, job, busy, force, onAnalyze, onCancel, onDelete, onDownloadDraft, onDownloadLyrics }: Props) {
+export function ImportRow({ row, job, busy, force, onAnalyze, onCancel, onDelete, onExternalAnalysis }: Props) {
   const processed = job?.processed ?? row.analyzedTrackCount;
   const total = job?.total || row.trackCount;
   const progress = total ? Math.round((processed / total) * 100) : 100;
@@ -29,13 +28,9 @@ export function ImportRow({ row, job, busy, force, onAnalyze, onCancel, onDelete
           <p>{row.trackCount} tracks · {row.status} · {row.pendingAnalysisCount} calls pending</p>
         </div>
         <div className="import-actions">
-          <button type="button" className="secondary-button" onClick={onDownloadDraft} disabled={busy} title="Download analysis draft">
+          <button type="button" className="secondary-button" onClick={onExternalAnalysis} disabled={busy}>
             <FileJson size={15} />
-            Draft
-          </button>
-          <button type="button" className="secondary-button" onClick={onDownloadLyrics} disabled={busy} title="Download lyrics JSON">
-            <Download size={15} />
-            Lyrics
+            External analysis
           </button>
           <button type="button" className="icon-danger-button" onClick={onDelete} disabled={busy || running} aria-label={`Delete ${row.name}`}>
             <Trash2 size={16} />
