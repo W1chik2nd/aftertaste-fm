@@ -1,6 +1,8 @@
 package fm.aftertaste
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
@@ -17,6 +19,7 @@ private const val DRAFT_IMPORT_SUFFIX = ".tagged-draft.json"
 private const val LYRICS_IMPORT_SUFFIX = ".lyrics.json"
 private const val INITIAL_SCORE = 0.5
 private const val INITIAL_SKIP_RISK = 0.2
+private const val LANG_MIN_SCRIPT_CHARS = 2
 
 class PlaylistImportService(
     private val importsPath: Path = Env.path("TASTE_IMPORTS_DIR", "data/taste/imports"),
@@ -25,6 +28,13 @@ class PlaylistImportService(
 ) {
     private val logger = LoggerFactory.getLogger(PlaylistImportService::class.java)
     private val json = HttpClients.sharedJson
+
+    /**
+     * Cached set of `(title, artist)` identities seen across every previously imported playlist.
+     * Saves a full disk re-scan on every import. Mutated only by [save].
+     */
+    private var identitiesCache: MutableSet<TrackIdentity>? = null
+    private val identitiesMutex = Mutex()
 
     suspend fun save(
         source: String,
@@ -39,8 +49,10 @@ class PlaylistImportService(
         val existingRaw = readRaw(rawPath)
         val existingDraft = readDraft(draftPath)
         val existingLyrics = readLyrics(lyricPath)
-        val seen = existingTrackIdentities().toMutableSet()
-        val uniqueTracks = playlist.tracks.filter { track -> seen.add(track.identity()) }
+        val identities = ensureIdentities()
+        val uniqueTracks = identitiesMutex.withLock {
+            playlist.tracks.filter { track -> identities.add(track.identity()) }
+        }
         val combinedTracks = (existingRaw?.playlist?.tracks.orEmpty() + uniqueTracks)
             .distinctBy { it.identity() }
         val uniquePlaylist = playlist.copy(tracks = combinedTracks)
@@ -84,24 +96,32 @@ class PlaylistImportService(
         )
     }
 
-    suspend fun list(evidence: EvidenceLibraryService): List<ImportRecord> = withContext(Dispatchers.IO) {
-        val analyses = evidence.list().associateBy { "${it.provider}:${it.id}" }
-        rawImportFiles().mapNotNull { path ->
-            readRaw(path)?.toRecord(slugFromRawPath(path), analyses)
-        }.sortedByDescending { it.importedAt }
+    suspend fun list(evidence: EvidenceLibraryService): List<ImportRecord> {
+        val analyzedKeys = evidence.existingKeys()
+        return withContext(Dispatchers.IO) {
+            rawImportFiles().mapNotNull { path ->
+                readRaw(path)?.toRecord(slugFromRawPath(path), analyzedKeys)
+            }.sortedByDescending { it.importedAt }
+        }
     }
 
-    suspend fun detail(slug: String, evidence: EvidenceLibraryService): ImportDetail? = withContext(Dispatchers.IO) {
-        val raw = readRaw(importsPath.resolve("$slug$RAW_IMPORT_SUFFIX")) ?: return@withContext null
-        val analyses = evidence.list().associateBy { "${it.provider}:${it.id}" }
-        val record = raw.toRecord(slug, analyses)
-        ImportDetail(
+    suspend fun detail(slug: String, evidence: EvidenceLibraryService): ImportDetail? {
+        val raw = withContext(Dispatchers.IO) {
+            readRaw(importsPath.resolve("$slug$RAW_IMPORT_SUFFIX"))
+        } ?: return null
+        val analyzedKeys = evidence.existingKeys()
+        val analyzedTracks = raw.playlist.tracks.filter { "${it.provider}:${it.id}" in analyzedKeys }
+        val analyzedAt = analyzedTracks
+            .mapNotNull { evidence.get(it.provider, it.id)?.lastAnalyzedAt }
+            .maxOrNull()
+        val record = raw.toRecord(slug, analyzedKeys)
+        return ImportDetail(
             slug = record.slug,
             playlistId = record.playlistId,
             name = record.name,
             trackCount = record.trackCount,
             importedAt = record.importedAt,
-            analyzedAt = record.analyzedAt,
+            analyzedAt = analyzedAt ?: record.analyzedAt,
             status = record.status,
             analyzedTrackCount = record.analyzedTrackCount,
             pendingAnalysisCount = record.pendingAnalysisCount,
@@ -126,11 +146,20 @@ class PlaylistImportService(
         }
     }
 
-    private fun existingTrackIdentities(): Set<TrackIdentity> =
-        rawImportFiles()
-            .mapNotNull { readRaw(it) }
-            .flatMap { imported -> imported.playlist.tracks.map { it.identity() } }
-            .toSet()
+    private suspend fun ensureIdentities(): MutableSet<TrackIdentity> {
+        identitiesCache?.let { return it }
+        return identitiesMutex.withLock {
+            identitiesCache ?: loadIdentitiesFromDisk().also { identitiesCache = it }
+        }
+    }
+
+    private suspend fun loadIdentitiesFromDisk(): MutableSet<TrackIdentity> =
+        withContext(Dispatchers.IO) {
+            rawImportFiles()
+                .mapNotNull { readRaw(it) }
+                .flatMap { imported -> imported.playlist.tracks.map { it.identity() } }
+                .toMutableSet()
+        }
 
     private fun readRaw(path: Path): ImportedPlaylistFile? =
         readFile(path) { content -> json.decodeFromString<ImportedPlaylistFile>(content) }
@@ -156,12 +185,12 @@ class PlaylistImportService(
 
     private fun ImportedPlaylistFile.toRecord(
         slug: String,
-        analyses: Map<String, EvidenceTrackAnalysis>
+        analyzedKeys: Set<String>
     ): ImportRecord {
-        val analyzed = playlist.tracks.mapNotNull { analyses["${it.provider}:${it.id}"] }
+        val analyzedCount = playlist.tracks.count { "${it.provider}:${it.id}" in analyzedKeys }
         val status = when {
-            analyzed.isEmpty() -> "imported"
-            analyzed.size == playlist.tracks.size -> "analyzed"
+            analyzedCount == 0 -> "imported"
+            analyzedCount == playlist.tracks.size -> "analyzed"
             else -> "partial"
         }
         return ImportRecord(
@@ -170,10 +199,10 @@ class PlaylistImportService(
             name = playlist.name,
             trackCount = playlist.tracks.size,
             importedAt = importedAt,
-            analyzedAt = analyzed.mapNotNull { it.lastAnalyzedAt }.maxOrNull(),
+            analyzedAt = null,
             status = status,
-            analyzedTrackCount = analyzed.size,
-            pendingAnalysisCount = playlist.tracks.size - analyzed.size
+            analyzedTrackCount = analyzedCount,
+            pendingAnalysisCount = playlist.tracks.size - analyzedCount
         )
     }
 
@@ -200,10 +229,17 @@ class PlaylistImportService(
 
     private fun guessLanguage(title: String, artist: String): String {
         val text = title + artist
+        if (text.isEmpty()) return "unknown"
+        val nonAscii = text.count { it.code > 127 }
+        val kana = text.count { it in '぀'..'ゟ' || it in '゠'..'ヿ' }
+        val hangul = text.count { it in '가'..'힯' }
+        val cjk = text.count { isCjkUnified(it) }
         return when {
-            text.any { it in '぀'..'ゟ' || it in '゠'..'ヿ' } -> "ja"
-            text.any { it in '가'..'힯' } -> "ko"
-            text.any { isCjkUnified(it) } -> "zh-CN"
+            // Require a non-trivial share of script-specific characters so a single stylistic kana
+            // (・, 〜) inside an otherwise Chinese-named track doesn't flip the language.
+            hangul >= LANG_MIN_SCRIPT_CHARS && hangul * 2 >= nonAscii -> "ko"
+            kana >= LANG_MIN_SCRIPT_CHARS && kana * 2 >= nonAscii -> "ja"
+            cjk >= LANG_MIN_SCRIPT_CHARS -> "zh-CN"
             text.all { it.code <= 127 } -> "en"
             else -> "unknown"
         }

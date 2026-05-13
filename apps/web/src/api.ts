@@ -14,6 +14,7 @@ import type {
   PlaybackState,
   SettingsResponse,
   TasteProfileResponse,
+  TasteTagsResponse,
   TasteTracksResponse
 } from "./types";
 import type { ImportEvidenceJsonResponse } from "./externalImportTypes";
@@ -115,6 +116,7 @@ export const radioApi = {
   },
   tasteTrack: (provider: string, id: string) =>
     request<EvidenceTrackAnalysis>(`/api/taste/tracks/${encodeURIComponent(provider)}/${encodeURIComponent(id)}`),
+  tasteTags: () => request<TasteTagsResponse>("/api/taste/tags"),
   tasteProfile: () => request<TasteProfileResponse>("/api/taste/profile"),
   play: () => request<PlaybackState>("/api/play", { method: "POST" }),
   pause: () => request<PlaybackState>("/api/pause", { method: "POST" }),

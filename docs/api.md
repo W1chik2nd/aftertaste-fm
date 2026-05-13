@@ -321,6 +321,15 @@ Returns paginated UI-shaped analyzed tracks.
 
 Returns one full `EvidenceTrackAnalysis` object from `data/taste/tracks/<provider>/<id>.json`.
 
+`GET /api/taste/tags`
+
+Returns every distinct tag name found across the library, sorted. Used by the Library filter UI so
+the tag dropdown shows the full vocabulary regardless of the current page or filter state.
+
+```json
+{ "tags": ["coding", "late-night", "rain", "soft", "uplift"] }
+```
+
 `GET /api/taste/profile`
 
 Returns current runtime taste profile text, rules, and source.

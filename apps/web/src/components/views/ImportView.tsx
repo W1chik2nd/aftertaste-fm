@@ -8,9 +8,10 @@ const JOB_POLL_INTERVAL_MS = 1600;
 
 type Props = {
   onError: (message: string | null) => void;
+  onLibraryChanged?: () => void;
 };
 
-export function ImportView({ onError }: Props) {
+export function ImportView({ onError, onLibraryChanged }: Props) {
   const [source, setSource] = useState("");
   const [imports, setImports] = useState<ImportRecord[]>([]);
   const [jobsBySlug, setJobsBySlug] = useState<Record<string, AnalysisJobView>>({});
@@ -18,9 +19,10 @@ export function ImportView({ onError }: Props) {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportPlaylistResponse | null>(null);
   const [busySlug, setBusySlug] = useState<string | null>(null);
+  const [forceReanalyze, setForceReanalyze] = useState(false);
 
-  const runningJobs = useMemo(
-    () => Object.entries(jobsBySlug).filter(([, job]) => job.status === "running"),
+  const hasRunningJob = useMemo(
+    () => Object.values(jobsBySlug).some((job) => job.status === "running"),
     [jobsBySlug]
   );
 
@@ -29,12 +31,12 @@ export function ImportView({ onError }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!runningJobs.length) return;
+    if (!hasRunningJob) return;
     const timer = window.setInterval(() => {
       void pollJobs();
     }, JOB_POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [runningJobs]);
+  }, [hasRunningJob]);
 
   async function loadImports() {
     setLoading(true);
@@ -49,19 +51,24 @@ export function ImportView({ onError }: Props) {
   }
 
   async function pollJobs() {
+    const running = Object.entries(jobsBySlug).filter(([, job]) => job.status === "running");
+    if (!running.length) return;
     const nextJobs = { ...jobsBySlug };
-    let shouldRefresh = false;
-    for (const [slug, job] of runningJobs) {
+    let completedAny = false;
+    for (const [slug, job] of running) {
       try {
         const next = await radioApi.job(job.jobId);
         nextJobs[slug] = next;
-        if (next.status !== "running") shouldRefresh = true;
+        if (next.status !== "running") completedAny = true;
       } catch (event) {
         onError(event instanceof Error ? event.message : "Could not refresh analysis progress.");
       }
     }
     setJobsBySlug(nextJobs);
-    if (shouldRefresh) await loadImports();
+    if (completedAny) {
+      await loadImports();
+      onLibraryChanged?.();
+    }
   }
 
   async function submitImport(event: FormEvent<HTMLFormElement>) {
@@ -85,7 +92,7 @@ export function ImportView({ onError }: Props) {
   async function analyze(row: ImportRecord) {
     setBusySlug(row.slug);
     try {
-      const started = await radioApi.analyzeImport(row.slug, { force: false, trackIds: null });
+      const started = await radioApi.analyzeImport(row.slug, { force: forceReanalyze, trackIds: null });
       const job = await radioApi.job(started.jobId);
       setJobsBySlug((current) => ({ ...current, [row.slug]: job }));
       onError(null);
@@ -139,7 +146,16 @@ export function ImportView({ onError }: Props) {
           Imported {importResult.trackCount} tracks · ignored {importResult.ignoredDuplicateCount} duplicates
         </p>
       ) : null}
-      <ExternalJsonImport onError={onError} onImported={() => void loadImports()} />
+      <ExternalJsonImport onError={onError} onImported={() => { void loadImports(); onLibraryChanged?.(); }} />
+
+      <label className="import-force-toggle">
+        <input
+          type="checkbox"
+          checked={forceReanalyze}
+          onChange={(event) => setForceReanalyze(event.target.checked)}
+        />
+        Re-analyze tracks that already have evidence (force)
+      </label>
 
       <div className="import-list">
         {loading ? <p className="muted-line">Loading imports...</p> : null}
@@ -150,6 +166,7 @@ export function ImportView({ onError }: Props) {
             row={row}
             job={jobsBySlug[row.slug]}
             busy={busySlug === row.slug}
+            force={forceReanalyze}
             onAnalyze={() => void analyze(row)}
             onCancel={() => void cancel(row)}
           />
@@ -163,12 +180,14 @@ function ImportRow({
   row,
   job,
   busy,
+  force,
   onAnalyze,
   onCancel
 }: {
   row: ImportRecord;
   job?: AnalysisJobView;
   busy: boolean;
+  force: boolean;
   onAnalyze: () => void;
   onCancel: () => void;
 }) {
@@ -176,6 +195,8 @@ function ImportRow({
   const total = job?.total || row.trackCount;
   const progress = total ? Math.round((processed / total) * 100) : 100;
   const running = job?.status === "running";
+  const callsToRun = force ? row.trackCount : row.pendingAnalysisCount;
+  const analyzeDisabled = busy || (!force && row.pendingAnalysisCount === 0);
   return (
     <article className="import-row">
       <div className="import-main">
@@ -196,10 +217,10 @@ function ImportRow({
               type="button"
               className="primary-button"
               onClick={onAnalyze}
-              disabled={busy || row.pendingAnalysisCount === 0}
+              disabled={analyzeDisabled}
             >
               {busy ? <Loader2 className="spin" size={15} /> : <WandSparkles size={15} />}
-              Analyze {row.pendingAnalysisCount} calls
+              {force ? `Re-analyze ${callsToRun} calls` : `Analyze ${callsToRun} calls`}
             </button>
           )}
         </div>

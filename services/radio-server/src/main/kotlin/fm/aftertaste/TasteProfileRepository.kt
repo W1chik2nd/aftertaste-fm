@@ -107,7 +107,7 @@ class CandidateSelector(private val repository: TasteProfileRepository) {
         }
 
         val routing = context.routing
-        val desiredTags = desiredTags(routing, profile.rules, context.mood.orEmpty().lowercase())
+        val desiredTags = desiredTags(routing, profile.rules)
         val scopedTracks = scopedTracks(profile.tracks, routing)
             .distinctBy { "${normalizeForMatch(it.artist)}|${normalizeForMatch(it.title)}" }
         val scored = scopedTracks.map { tagged ->
@@ -129,7 +129,7 @@ class CandidateSelector(private val repository: TasteProfileRepository) {
         )
     }
 
-    private fun desiredTags(routing: RoutingIntent, rules: TasteRules, lowerPrompt: String): List<String> {
+    private fun desiredTags(routing: RoutingIntent, rules: TasteRules): List<String> {
         val tags = linkedSetOf<String>()
         when (routing.routine) {
             "late-night-coding" -> tags += listOf("coding", "focus", "late-night")
@@ -153,10 +153,7 @@ class CandidateSelector(private val repository: TasteProfileRepository) {
             "uplift" -> tags += listOf("uplift", "hopeful")
         }
         tags += routing.artists
-
-        rules.moodAliases.forEach { (alias, aliasTags) ->
-            if (alias.lowercase() in lowerPrompt) tags += aliasTags
-        }
+        tags += routing.extraTags
         if (tags.isEmpty()) tags += rules.preferredTags
         return tags.toList()
     }

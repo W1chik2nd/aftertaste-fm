@@ -153,6 +153,11 @@ data class ErrorResponse(
 )
 
 @Serializable
+data class TasteTagsResponse(
+    val tags: List<String>
+)
+
+@Serializable
 data class ImportEvidenceJsonRequest(
     val content: String,
     val sourceName: String? = null

@@ -99,6 +99,10 @@ fun Route.registerTasteRoutes(
         if (track == null) call.respondNotFound("Track evidence not found: $provider/$id") else call.respond(track)
     }
 
+    get("/taste/tags") {
+        call.respond(TasteTagsResponse(evidence.distinctTagNames()))
+    }
+
     get("/taste/profile") {
         val profile = tasteRepository.load()
         call.respond(TasteProfileResponse(profile.profileText, profile.rules, profile.source))

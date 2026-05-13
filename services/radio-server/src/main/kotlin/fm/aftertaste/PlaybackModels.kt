@@ -21,11 +21,12 @@ data class RoutingIntent(
     val routine: String? = null,
     val moodTag: String? = null,
     val avoid: List<String> = emptyList(),
-    val artists: List<String> = emptyList()
+    val artists: List<String> = emptyList(),
+    val extraTags: List<String> = emptyList()
 ) {
     fun isEmpty(): Boolean =
         language == null && energy == null && routine == null && moodTag == null &&
-            avoid.isEmpty() && artists.isEmpty()
+            avoid.isEmpty() && artists.isEmpty() && extraTags.isEmpty()
 }
 
 @Serializable

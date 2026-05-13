@@ -75,11 +75,8 @@ class AnalysisJobService(
         val requestedIds = request.trackIds?.toSet()
         val scoped = draft.tracks.filter { requestedIds == null || it.id in requestedIds }
         if (request.force) return scoped
-        val pending = mutableListOf<TaggedTrack>()
-        for (track in scoped) {
-            if (!evidence.exists(track.provider, track.id)) pending += track
-        }
-        return pending
+        val existing = evidence.existingKeys()
+        return scoped.filterNot { "${it.provider}:${it.id}" in existing }
     }
 
     private suspend fun runJob(
@@ -89,13 +86,14 @@ class AnalysisJobService(
         lyrics: Map<String, String?>,
         service: TrackAnalysisService
     ) {
+        var wroteAny = false
         try {
             for (track in tracks) {
                 if (isCancelled(jobId)) break
                 update(jobId) { it.copy(current = track.toSummary()) }
                 val result = analyzeOne(track, lyrics[track.id], draft.playlistName, service)
                 evidence.save(result.analysis)
-                evidence.rebuildAggregate()
+                wroteAny = true
                 update(jobId) {
                     it.copy(
                         processed = it.processed + 1,
@@ -104,13 +102,25 @@ class AnalysisJobService(
                     )
                 }
             }
+            if (wroteAny) evidence.rebuildAggregate()
             finish(jobId)
         } catch (cancelled: CancellationException) {
+            if (wroteAny) runCatchingAggregate()
             throw cancelled
         } catch (cause: IOException) {
+            if (wroteAny) runCatchingAggregate()
             fail(jobId, cause.message ?: "File write failed.")
         } catch (cause: SerializationException) {
+            if (wroteAny) runCatchingAggregate()
             fail(jobId, cause.message ?: "Evidence serialization failed.")
+        }
+    }
+
+    private suspend fun runCatchingAggregate() {
+        try {
+            evidence.rebuildAggregate()
+        } catch (cause: IOException) {
+            logger.warn("Aggregate rebuild failed after partial run: {}", cause.message)
         }
     }
 

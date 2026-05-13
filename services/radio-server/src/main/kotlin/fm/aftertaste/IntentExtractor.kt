@@ -51,13 +51,21 @@ object IntentExtractor {
 
         val artists = detectArtists(raw, rules, catalogArtists)
 
+        val extraTags = rules.moodAliases
+            .filter { (alias, _) -> alias.lowercase() in lower }
+            .flatMap { it.value }
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+
         return RoutingIntent(
             language = language,
             energy = energy,
             routine = routine,
             moodTag = moodTag,
             avoid = avoid,
-            artists = artists
+            artists = artists,
+            extraTags = extraTags
         )
     }
 

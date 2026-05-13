@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { radioApi } from "../../api";
 import type { EvidenceTag, EvidenceTrackAnalysis, TaggedTrackView } from "../../types";
@@ -8,9 +8,10 @@ const SCORE_PERCENT = 100;
 
 type Props = {
   onError: (message: string | null) => void;
+  refreshSignal?: number;
 };
 
-export function LibraryView({ onError }: Props) {
+export function LibraryView({ onError, refreshSignal = 0 }: Props) {
   const [tracks, setTracks] = useState<TaggedTrackView[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -21,11 +22,7 @@ export function LibraryView({ onError }: Props) {
   const [selected, setSelected] = useState<EvidenceTrackAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
-
-  const tagOptions = useMemo(
-    () => [...new Set(tracks.flatMap((track) => track.dominantTags))].sort(),
-    [tracks]
-  );
+  const [tagOptions, setTagOptions] = useState<string[]>([]);
 
   useEffect(() => {
     setOffset(0);
@@ -33,7 +30,20 @@ export function LibraryView({ onError }: Props) {
 
   useEffect(() => {
     void loadTracks();
-  }, [language, tag, sort, minConfidence, offset]);
+  }, [language, tag, sort, minConfidence, offset, refreshSignal]);
+
+  useEffect(() => {
+    void loadTagOptions();
+  }, [refreshSignal]);
+
+  async function loadTagOptions() {
+    try {
+      const response = await radioApi.tasteTags();
+      setTagOptions(response.tags);
+    } catch (event) {
+      console.warn("Could not load tag list.", event);
+    }
+  }
 
   async function loadTracks() {
     setLoading(true);

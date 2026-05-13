@@ -36,6 +36,7 @@ function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [adapterStatus, setAdapterStatus] = useState("unknown");
+  const [libraryRevision, setLibraryRevision] = useState(0);
   const [agentTrace, setAgentTrace] = useState<AgentTrace | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: "agent", text: "Tell me what the room needs. I will turn it into a few radio segments, not a song-by-song lecture." }
@@ -118,8 +119,7 @@ function App() {
   async function refreshStatus() {
     const [server, adapter] = await Promise.allSettled([radioApi.health(), radioApi.adapterHealth()]);
     if (server.status === "fulfilled") setHealth(server.value);
-    if (adapter.status === "fulfilled") setAdapterStatus(adapter.value.status ?? "ok");
-    if (adapter.status === "rejected") setAdapterStatus("offline");
+    setAdapterStatus(adapter.status === "fulfilled" ? (adapter.value.status ?? "ok") : "offline");
   }
 
   async function run(action: () => Promise<PlaybackState | PlanResponse>) {
@@ -203,7 +203,6 @@ function App() {
     await run(radioApi.planToday);
   }
 
-  const canPlayAudio = Boolean(mainUrl);
   const displayDuration = durationSeconds || (current?.type === "track" && current.track?.durationMs ? current.track.durationMs / 1000 : 0);
 
   return (
@@ -256,7 +255,7 @@ function App() {
             statusLabel={statusLabel}
             current={current}
             error={error}
-            canPlayAudio={canPlayAudio}
+            canPlayAudio={Boolean(mainUrl)}
             progressSeconds={progressSeconds}
             displayDuration={displayDuration}
             onSeek={seek}
@@ -275,8 +274,10 @@ function App() {
             ) : null}
           </PlayerView>
         ) : null}
-        {activeView === "library" ? <LibraryView onError={setError} /> : null}
-        {activeView === "import" ? <ImportView onError={setError} /> : null}
+        {activeView === "library" ? <LibraryView onError={setError} refreshSignal={libraryRevision} /> : null}
+        {activeView === "import" ? (
+          <ImportView onError={setError} onLibraryChanged={() => setLibraryRevision((rev) => rev + 1)} />
+        ) : null}
         {activeView === "settings" ? (
           <SettingsView
             health={health}
@@ -285,7 +286,7 @@ function App() {
             locationInput={locationInput}
             setLocationInput={setLocationInput}
             onSaveLocation={saveLocation}
-            onRefreshStatus={() => void refreshStatus()}
+            onRefreshStatus={() => { void refreshStatus(); void refreshSettings(); }}
             busy={busy}
           />
         ) : null}

@@ -57,14 +57,15 @@ fun Application.module() {
         "netease" -> NeteaseMusicProvider(adapterBaseUrl)
         else -> MockMusicProvider()
     }
-    val neteaseImportProvider = NeteaseMusicProvider(baseUrl = adapterBaseUrl, fallback = null)
-    val adapterHealthProvider = NeteaseMusicProvider(baseUrl = adapterBaseUrl, fallback = null)
+    // Import + adapter health both need a real netease provider regardless of MUSIC_PROVIDER mode,
+    // so they share a single instance. Falling back to mock for these paths would defeat the point.
+    val neteaseRealProvider = NeteaseMusicProvider(baseUrl = adapterBaseUrl, fallback = null)
     val tasteRepository = TasteProfileRepository()
     val evidenceLibrary = EvidenceLibraryService()
     val playlistImportService = PlaylistImportService()
     val engine = RadioEngine(
         provider,
-        neteaseImportProvider,
+        neteaseRealProvider,
         hostConfig,
         StateStore(),
         tasteRepository = tasteRepository,
@@ -110,7 +111,7 @@ fun Application.module() {
             }
 
             get("/health/adapter") {
-                val health = adapterHealthProvider.healthCheck()
+                val health = neteaseRealProvider.healthCheck()
                 call.respond(AdapterHealthResponse(status = health.status, mode = health.mode))
             }
 
@@ -183,16 +184,21 @@ fun Application.module() {
             registerTasteRoutes(tasteRepository, evidenceLibrary)
         }
 
+        val wsLogger = org.slf4j.LoggerFactory.getLogger("fm.aftertaste.WsStream")
         webSocket("/ws/stream") {
             val intervalMs = Env.value("WS_STREAM_INTERVAL_MS")?.toLongOrNull() ?: 2000L
-            var lastSnapshot: String? = null
-            while (isActive) {
-                val snapshot = json.encodeToString(engine.now())
-                if (snapshot != lastSnapshot) {
-                    send(Frame.Text(snapshot))
-                    lastSnapshot = snapshot
+            try {
+                var lastSnapshot: String? = null
+                while (isActive) {
+                    val snapshot = json.encodeToString(engine.now())
+                    if (snapshot != lastSnapshot) {
+                        send(Frame.Text(snapshot))
+                        lastSnapshot = snapshot
+                    }
+                    delay(intervalMs)
                 }
-                delay(intervalMs)
+            } catch (cause: Throwable) {
+                wsLogger.debug("ws/stream closed: {}", cause.message)
             }
         }
     }

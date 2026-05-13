@@ -1,6 +1,8 @@
 package fm.aftertaste
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
@@ -11,7 +13,6 @@ import java.nio.file.Path
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import kotlin.io.path.extension
-import kotlin.io.path.nameWithoutExtension
 
 private const val DEFAULT_TASTE_TRACK_LIMIT = 50
 private const val MAX_TASTE_TRACK_LIMIT = 200
@@ -35,23 +36,29 @@ class EvidenceLibraryService(
     private val tracksRoot = tastePath.resolve("tracks")
     private val aggregatePath = tastePath.resolve("tracks.evidence.json")
 
-    suspend fun exists(provider: String, id: String): Boolean = withContext(Dispatchers.IO) {
-        Files.exists(trackPath(provider, id))
-    }
+    // In-memory cache of every per-track evidence JSON keyed by "provider:id". The first read
+    // walks the tracks directory; subsequent reads + exists() / existingKeys() are O(1). The
+    // cache is kept consistent with disk by going through save() and rebuildAggregate(); we are
+    // the sole writer for data/taste/tracks at runtime, so single-process coherence is enough.
+    private var cache: LinkedHashMap<String, EvidenceTrackAnalysis>? = null
+    private val cacheMutex = Mutex()
+
+    suspend fun exists(provider: String, id: String): Boolean =
+        ensureCache().containsKey(cacheKey(provider, id))
+
+    suspend fun existingKeys(): Set<String> = ensureCache().keys.toSet()
 
     suspend fun save(track: EvidenceTrackAnalysis) {
         AtomicFiles.writeString(trackPath(track.provider, track.id), json.encodeToString(track) + "\n")
+        cacheMutex.withLock {
+            cache?.put(cacheKey(track.provider, track.id), track)
+        }
     }
 
-    suspend fun get(provider: String, id: String): EvidenceTrackAnalysis? = withContext(Dispatchers.IO) {
-        val path = trackPath(provider, id)
-        if (!Files.exists(path)) return@withContext null
-        json.decodeFromString<EvidenceTrackAnalysis>(Files.readString(path))
-    }
+    suspend fun get(provider: String, id: String): EvidenceTrackAnalysis? =
+        ensureCache()[cacheKey(provider, id)]
 
-    suspend fun list(): List<EvidenceTrackAnalysis> = withContext(Dispatchers.IO) {
-        listBlocking()
-    }
+    suspend fun list(): List<EvidenceTrackAnalysis> = ensureCache().values.toList()
 
     suspend fun query(query: TasteTrackQuery): TasteTracksResponse {
         val filtered = list()
@@ -70,18 +77,53 @@ class EvidenceLibraryService(
         )
     }
 
-    suspend fun rebuildAggregate(): EvidencePlaylistAnalysis = withContext(Dispatchers.IO) {
-        val aggregate = EvidencePlaylistAnalysis(
-            generatedAt = nowIso(),
-            source = "data/taste/tracks",
-            playlistId = "library",
-            playlistName = "Aftertaste Library",
-            analysisMode = "evidence-v2-per-track",
-            tracks = listBlocking()
+    suspend fun distinctTagNames(): List<String> =
+        ensureCache().values
+            .flatMap { it.allTagNames() }
+            .distinct()
+            .sorted()
+
+    suspend fun rebuildAggregate(): EvidencePlaylistAnalysis {
+        val tracks = list().sortedWith(
+            compareBy<EvidenceTrackAnalysis> { it.artist }.thenBy { it.title }.thenBy { it.id }
         )
-        AtomicFiles.writeStringBlocking(aggregatePath, json.encodeToString(aggregate) + "\n")
-        aggregate
+        return withContext(Dispatchers.IO) {
+            val aggregate = EvidencePlaylistAnalysis(
+                generatedAt = nowIso(),
+                source = "data/taste/tracks",
+                playlistId = "library",
+                playlistName = "Aftertaste Library",
+                analysisMode = "evidence-v2-per-track",
+                tracks = tracks
+            )
+            AtomicFiles.writeStringBlocking(aggregatePath, json.encodeToString(aggregate) + "\n")
+            aggregate
+        }
     }
+
+    private suspend fun ensureCache(): LinkedHashMap<String, EvidenceTrackAnalysis> {
+        cache?.let { return it }
+        return cacheMutex.withLock {
+            cache ?: loadCacheFromDisk().also { cache = it }
+        }
+    }
+
+    private suspend fun loadCacheFromDisk(): LinkedHashMap<String, EvidenceTrackAnalysis> =
+        withContext(Dispatchers.IO) {
+            val map = LinkedHashMap<String, EvidenceTrackAnalysis>()
+            if (!Files.exists(tracksRoot)) return@withContext map
+            Files.walk(tracksRoot).use { stream ->
+                stream
+                    .filter { Files.isRegularFile(it) && it.extension == "json" }
+                    .toList()
+                    .forEach { path ->
+                        readEvidenceFile(path)?.let { map[cacheKey(it.provider, it.id)] = it }
+                    }
+            }
+            map
+        }
+
+    private fun cacheKey(provider: String, id: String): String = "$provider:$id"
 
     fun queryFromParameters(
         language: String?,
@@ -102,18 +144,6 @@ class EvidenceLibraryService(
 
     private fun trackPath(provider: String, id: String): Path =
         tracksRoot.resolve(safeFileStem(provider)).resolve("${safeFileStem(id)}.json")
-
-    private fun listBlocking(): List<EvidenceTrackAnalysis> {
-        if (!Files.exists(tracksRoot)) return emptyList()
-        Files.walk(tracksRoot).use { stream ->
-            val files = stream
-                .filter { Files.isRegularFile(it) && it.extension == "json" }
-                .toList()
-            return files
-                .mapNotNull { readEvidenceFile(it) }
-                .sortedWith(compareBy<EvidenceTrackAnalysis> { it.artist }.thenBy { it.title }.thenBy { it.id })
-        }
-    }
 
     private fun readEvidenceFile(path: Path): EvidenceTrackAnalysis? =
         try {
@@ -159,6 +189,9 @@ class EvidenceLibraryService(
         (moodTags + contextTags + soundTags + useTags).map { it.tag }.toSet()
 
     private fun EvidenceTrackAnalysis.confidence(): Double {
+        val tagGroups = listOf(moodTags, contextTags, soundTags, useTags)
+            .filter { it.isNotEmpty() }
+            .map { group -> group.maxOf { it.confidence } }
         val values = listOf(
             language.confidence,
             scores.energy.confidence,
@@ -166,7 +199,7 @@ class EvidenceLibraryService(
             scores.night.confidence,
             scores.coding.confidence,
             scores.skipRisk.confidence
-        ) + (moodTags + contextTags + soundTags + useTags).map { it.confidence }
+        ) + tagGroups
         return (values.average() * CONFIDENCE_DECIMAL_PLACES).toInt() / CONFIDENCE_DECIMAL_PLACES
     }
 

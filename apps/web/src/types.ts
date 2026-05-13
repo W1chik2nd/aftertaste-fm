@@ -282,6 +282,11 @@ export type TasteTracksResponse = {
   tracks: TaggedTrackView[];
   total: number;
 };
+
+export type TasteTagsResponse = {
+  tags: string[];
+};
+
 export type TasteProfileResponse = {
   profileText: string;
   rules: TasteRules;

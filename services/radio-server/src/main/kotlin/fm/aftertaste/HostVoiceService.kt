@@ -26,6 +26,7 @@ import kotlin.random.Random
 
 private const val FISH_ERROR_BODY_CHARS = 220
 private const val HOST_CACHE_KEY_CHARS = 24
+private const val TTS_THROWAWAY_RETENTION_MS = 24L * 60 * 60 * 1000
 
 class HostVoiceService(
     private val httpClient: HttpClient = HttpClients.shared
@@ -107,6 +108,7 @@ class HostVoiceService(
         val outputFile = if (cacheEnabled) {
             cacheDirectory.resolve("$digest.$extension")
         } else {
+            sweepStaleThrowaways(extension)
             cacheDirectory.resolve("$digest-${System.currentTimeMillis()}.$extension")
         }
         if (cacheEnabled && Files.exists(outputFile)) {
@@ -151,6 +153,27 @@ class HostVoiceService(
             }
             HostVoiceAsset(script = script, audioUrl = "/media/tts/${outputFile.fileName}", cacheKey = digest)
         }
+
+    private fun sweepStaleThrowaways(extension: String) {
+        if (!Files.exists(cacheDirectory)) return
+        val cutoff = System.currentTimeMillis() - TTS_THROWAWAY_RETENTION_MS
+        try {
+            Files.list(cacheDirectory).use { stream ->
+                stream
+                    .filter { path ->
+                        val name = path.fileName.toString()
+                        name.endsWith(".$extension") && name.contains('-') &&
+                            Files.getLastModifiedTime(path).toMillis() < cutoff
+                    }
+                    .forEach { path ->
+                        runCatching { Files.deleteIfExists(path) }
+                            .onFailure { logger.debug("Could not delete stale TTS file {}: {}", path, it.message) }
+                    }
+            }
+        } catch (cause: java.io.IOException) {
+            logger.debug("TTS cache sweep failed: {}", cause.message)
+        }
+    }
 
     private fun cacheKey(script: String): String =
         MessageDigest.getInstance("SHA-256")
