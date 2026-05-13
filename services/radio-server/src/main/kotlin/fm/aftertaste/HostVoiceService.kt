@@ -64,14 +64,14 @@ class HostVoiceService(
         val firstChapterOpenings = listOf(
             "It is $timeText now.$weather We start quietly, with $leadIntro close enough to feel personal and far enough away to leave some room.",
             "$timeText.$weather This first chapter does not need a grand entrance. $leadIntro can come in at the pace of $station.",
-            "The hour is $timeText.$weather For the first record, we keep the lights low and let $leadIntro set the pace without announcing itself too hard.",
+            "The hour is $timeText.$weather For the first record, we keep it close and let $leadIntro set the pace without announcing itself too hard.",
             "${weather.trimStart()} The clock says $timeText, and this opening chapter is more about settling than declaring. $leadIntro gives us that first soft edge."
         )
         return when (chapterIndex) {
             0 -> "${firstChapterOpenings.randomBy(seed)} It keeps close to $mood without forcing the feeling into shape. $leadLine"
             1 -> listOf(
                 "A few songs in, the station has changed texture. This chapter stays with what remains after the noise falls away. $leadIntro gives that feeling a center, then the next songs get to move cleanly around it. $leadLine",
-                "We turn a little, but we do not break the spell. $leadIntro keeps the room low and steady, the kind of song that lets memory be present without making a speech out of it. $leadLine",
+                "We turn a little, but we do not break the spell. $leadIntro keeps things close and steady, the kind of song that lets memory be present without making a speech out of it. $leadLine",
                 "The second chapter should feel less like a reset and more like a handoff. $leadIntro carries the thread forward, soft at the edges and clear in the middle. $leadLine"
             ).randomBy(seed)
             2 -> listOf(

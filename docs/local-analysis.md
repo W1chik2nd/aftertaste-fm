@@ -76,20 +76,4 @@ Allowed evidence source values are `metadata`, `lyrics`, `playlist_context`, `us
 
 ## Agent Prompt
 
-```text
-Analyze the imported playlist for Aftertaste FM.
-
-Read the tagged draft JSON and lyrics JSON I provide. Return only one JSON object with a top-level "tracks" array. Use the exact EvidenceTrackAnalysis shape from docs/local-analysis.md. Keep provider/id/title/artist/album/durationMs/coverUrl/playCount exactly from the draft. Use playCount only as user_behavior evidence for familiarity and durable preference strength.
-
-If your chat interface supports creating downloadable files, put the JSON into a file named aftertaste-analysis.json and attach that file instead of printing the full JSON in the chat. If file output is not available, return compact JSON text without pretty-printing.
-
-Acceptance criteria:
-- Analyze every track individually. Do not apply one playlist-level template to all tracks.
-- Do not give every track the same numeric scores. Similar songs can be close, but the scores should still reflect track-level differences.
-- moodTags, contextTags, soundTags, and useTags should usually contain useful track-level signals when lyrics or metadata allow it.
-- speechiness means rap or spoken-word density. Sung pop ballads should usually have low speechiness unless the lyrics are delivered like rap.
-- notes and analysisNotes.summary must be specific to the track, not the same repeated sentence.
-- Use only the score keys shown in the schema. Do not add extra score fields.
-
-Do not quote lyrics; paraphrase evidence. Use lowercase kebab-case tags. Prefer unknown or low confidence over pretending. Set needsReview=true when lyrics are missing, language is uncertain, or the analysis is weak.
-```
+The canonical prompt lives in the web UI as the `EXTERNAL_ANALYSIS_PROMPT` constant in `apps/web/src/components/views/ExternalAnalysisDialog.tsx`. Open the **External analysis** button on any imported playlist, then hit **Copy prompt** to grab the current version. It bundles the schema above plus quality acceptance criteria; the radio-server import endpoint rejects batches that fail the same checks (see `ExternalEvidenceImportService.checkQuality`).

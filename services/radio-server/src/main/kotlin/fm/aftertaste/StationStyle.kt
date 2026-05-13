@@ -60,4 +60,4 @@ fun stationStyleFor(time: OffsetDateTime): StationStyle =
 private val MORNING_HOURS = 6..10
 private val AFTERNOON_HOURS = 11..16
 private val EVENING_HOURS = 17..20
-private val DEEP_NIGHT_HOURS = 0..4
+private val DEEP_NIGHT_HOURS = 0..5
