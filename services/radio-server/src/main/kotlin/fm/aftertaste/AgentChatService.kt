@@ -159,14 +159,10 @@ class AgentChatService(
         val decision = explicitCommandDecision(message, playback)
         if (decision.message != null) return decision
 
-        val lower = message.lowercase()
-        val reply = when {
-            "help" in lower || "what can you" in lower ->
-                "I can tune the station by mood, language, energy, or scene; skip, pause, resume, or go back; and talk about what is playing. Try something like \"more English and less sad\" or \"quiet songs for late-night coding.\""
-            playback.currentItem != null ->
-                "I am here with the current chapter. Tell me if you want the music softer, brighter, more English, less sad, or just ask about what is playing."
-            else ->
-                "Tell me what the room needs, and I can build a hosted radio chapter around it."
+        val reply = if (playback.currentItem != null) {
+            "I am here with the current chapter. Tell me if you want the music softer, brighter, more English, less sad, or just ask about what is playing."
+        } else {
+            "Tell me what the room needs, and I can build a hosted radio chapter around it."
         }
         return decision.copy(message = reply)
     }

@@ -9,10 +9,33 @@ data class RecommendationContext(
     val hostLanguage: String = "en-US",
     val intent: String = "daily_show",
     val routing: RoutingIntent = RoutingIntent(),
-    val recentSignals: List<String> = emptyList(),
+    val memory: ContextMemory = ContextMemory(),
     val weather: WeatherSnapshot? = null,
     val variationSeed: String? = null,
     val stationStyle: StationStyle? = null
+)
+
+@Serializable
+data class ContextMemory(
+    val recentPlans: List<String> = emptyList(),
+    val recentPlays: List<RecentPlay> = emptyList(),
+    val recentMessages: List<RecentMessage> = emptyList()
+) {
+    fun isEmpty(): Boolean =
+        recentPlans.isEmpty() && recentPlays.isEmpty() && recentMessages.isEmpty()
+}
+
+@Serializable
+data class RecentPlay(
+    val action: String,
+    val title: String,
+    val artist: String? = null
+)
+
+@Serializable
+data class RecentMessage(
+    val role: String,
+    val content: String
 )
 
 @Serializable

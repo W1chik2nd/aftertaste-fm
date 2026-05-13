@@ -7,7 +7,6 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
-private const val MIN_SHOW_SEGMENTS = 2
 private const val MAX_LLM_SEGMENTS = 4
 private const val DEFAULT_LLM_CANDIDATE_LIMIT = 30
 private const val MIN_LLM_CANDIDATE_LIMIT = 12
@@ -126,7 +125,7 @@ class ConfiguredLlmShowPlanner(
         Intent: ${context.intent}
         Routing intent: ${routingSummary(context.routing)}
         Station mode: ${context.stationStyle?.label ?: "Default"}; style=${context.stationStyle?.hostStyle ?: hostConfig.hostStyle}
-        Context signals: ${context.recentSignals.joinToString(", ")}
+        Recent context: ${memorySummary(context.memory)}
         Variation seed: ${context.variationSeed ?: "none"}
         Local time: ${context.localTime}
         Weather context: ${context.weather?.let { "${friendlyPlaceName(it.locationName)}, ${it.condition}, ${it.temperatureC}C, feels ${it.apparentTemperatureC ?: it.temperatureC}C" } ?: "none"}
@@ -221,6 +220,22 @@ class ConfiguredLlmShowPlanner(
                 ?.let { ConfiguredLlmShowPlanner(it) }
                 ?: DisabledLlmShowPlanner()
     }
+}
+
+private fun memorySummary(memory: ContextMemory): String {
+    if (memory.isEmpty()) return "none"
+    val parts = buildList {
+        memory.recentPlans.takeIf { it.isNotEmpty() }?.let {
+            add("recent plans: ${it.joinToString(" | ")}")
+        }
+        memory.recentPlays.takeIf { it.isNotEmpty() }?.let { plays ->
+            add(plays.joinToString(" | ") { "${it.action} ${it.title} by ${it.artist ?: "unknown"}" })
+        }
+        memory.recentMessages.takeIf { it.isNotEmpty() }?.let { msgs ->
+            add(msgs.joinToString(" | ") { "${it.role}: ${it.content}" })
+        }
+    }
+    return parts.joinToString("; ")
 }
 
 private fun routingSummary(routing: RoutingIntent): String {

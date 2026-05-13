@@ -16,7 +16,6 @@ class RadioAgent {
         val stationStyle = stationStyleFor(now)
         val routing = routingOverride ?: IntentExtractor.extract(cleanedMood, tasteRules, catalogArtists)
         val intent = inferIntent(cleanedMood, routing)
-        val signals = buildSignals(hostConfig, routing, stationStyle)
         val seed = "${cleanedMood ?: "daily"}-${now.toEpochSecond()}-${Random.nextInt(0, 100_000)}"
         return RecommendationContext(
             mood = cleanedMood,
@@ -24,7 +23,6 @@ class RadioAgent {
             hostLanguage = hostConfig.hostLanguage,
             intent = intent,
             routing = routing,
-            recentSignals = signals,
             variationSeed = seed,
             stationStyle = stationStyle
         )
@@ -67,13 +65,38 @@ class RadioAgent {
                 "Use English host copy even when the tracks are Chinese or mixed.",
                 "Return unavailable stream reasons instead of crashing."
             ),
-            signals = listOf(
-                AgentSignal("intent", context.intent),
-                AgentSignal("mood", context.mood ?: "daily"),
-                AgentSignal("catalog", trackLanguages.joinToString(", ")),
-                AgentSignal("queue", "${plan.segments.size} host breaks / ${tracks.size} tracks")
-            ) + context.recentSignals.mapIndexed { index, value -> AgentSignal("signal ${index + 1}", value) }
+            signals = buildContextSignals(context, plan, tracks, trackLanguages)
         )
+    }
+
+    private fun buildContextSignals(
+        context: RecommendationContext,
+        plan: ShowPlan,
+        tracks: List<Track>,
+        trackLanguages: List<String>
+    ): List<AgentSignal> = buildList {
+        add(AgentSignal("intent", context.intent))
+        add(AgentSignal("mood", context.mood ?: "daily"))
+        add(AgentSignal("catalog", trackLanguages.joinToString(", ")))
+        add(AgentSignal("queue", "${plan.segments.size} host breaks / ${tracks.size} tracks"))
+        add(AgentSignal("host", "${plan.hostConfig.hostName}, ${plan.hostConfig.hostLanguage}, ${plan.hostConfig.segmentSpeechMode}"))
+        context.stationStyle?.let { add(AgentSignal("station", "${it.daypart}, ${it.hostStyle}")) }
+        with(context.routing) {
+            routine?.let { add(AgentSignal("routine", it)) }
+            energy?.let { add(AgentSignal("energy", it)) }
+            language?.let { add(AgentSignal("language-hint", it)) }
+            moodTag?.let { add(AgentSignal("mood-tag", it)) }
+            avoid.forEach { add(AgentSignal("avoid", it)) }
+            artists.forEach { add(AgentSignal("artist", it)) }
+            extraTags.forEach { add(AgentSignal("tag", it)) }
+        }
+        context.memory.recentPlans.forEach { add(AgentSignal("recent-plan", it)) }
+        context.memory.recentPlays.forEach {
+            add(AgentSignal("recent-${it.action}", "${it.title} by ${it.artist ?: "unknown"}"))
+        }
+        context.memory.recentMessages.forEach {
+            add(AgentSignal("recent-${it.role}-message", it.content))
+        }
     }
 
     private fun inferIntent(mood: String?, routing: RoutingIntent): String =
@@ -84,21 +107,6 @@ class RadioAgent {
             routing.energy != null || routing.routine != null || routing.language != null -> "mood_request"
             else -> "conversation_tuning"
         }
-
-    private fun buildSignals(hostConfig: HostConfig, routing: RoutingIntent, stationStyle: StationStyle): List<String> = buildList {
-        add("host=${hostConfig.hostName}")
-        add("language=${hostConfig.hostLanguage}")
-        add("speech=${hostConfig.segmentSpeechMode}")
-        add("station=${stationStyle.daypart}")
-        add("style=${stationStyle.hostStyle}")
-        routing.routine?.let { add("routine=$it") }
-        routing.energy?.let { add("energy=$it") }
-        routing.language?.let { add("language-hint=$it") }
-        routing.moodTag?.let { add("mood-tag=$it") }
-        routing.avoid.forEach { add("avoid=$it") }
-        routing.artists.forEach { add("artist=$it") }
-        routing.extraTags.forEach { add("tag=$it") }
-    }
 
     /**
      * Real routing path based on what actually happened, not a hardcoded story.

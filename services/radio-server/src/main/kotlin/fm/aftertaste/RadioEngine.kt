@@ -173,27 +173,11 @@ class RadioEngine(
         }
     }
 
-    private fun withWeather(context: RecommendationContext): RecommendationContext {
-        val weather = settings.weather ?: return context
-        val summary = weatherSummary(weather)
-        return context.copy(
-            weather = weather,
-            recentSignals = context.recentSignals + listOf("weather=$summary")
-        )
-    }
+    private fun withWeather(context: RecommendationContext): RecommendationContext =
+        settings.weather?.let { context.copy(weather = it) } ?: context
 
-    private suspend fun withMemory(context: RecommendationContext): RecommendationContext {
-        val memory = store.recentMemory()
-        if (memory.isEmpty()) return context
-        return context.copy(recentSignals = context.recentSignals + memory)
-    }
-
-    private fun weatherSummary(weather: WeatherSnapshot): String {
-        val feels = weather.apparentTemperatureC?.let { ", feels ${"%.0f".format(it)}C" }.orEmpty()
-        val rain = weather.precipitationMm?.takeIf { it > 0.0 }?.let { ", ${"%.1f".format(it)}mm rain" }.orEmpty()
-        val wind = weather.windSpeedKmh?.let { ", wind ${"%.0f".format(it)}km/h" }.orEmpty()
-        return "${weather.locationName}: ${weather.condition}, ${"%.0f".format(weather.temperatureC)}C$feels$rain$wind"
-    }
+    private suspend fun withMemory(context: RecommendationContext): RecommendationContext =
+        context.copy(memory = store.recentMemory())
 
     private suspend fun hydrateStreams(tracks: List<Track>): List<Track> {
         if (tracks.isEmpty()) return tracks
@@ -233,7 +217,7 @@ internal fun LlmShowPlan.toShowPlan(candidates: List<Track>, hostConfig: HostCon
             )
         }
     }
-    if (showSegments.size < MIN_LLM_SHOW_SEGMENTS) return null
+    if (showSegments.size < MIN_SHOW_SEGMENTS) return null
     return ShowPlan(
         id = "show-${today}-llm-${System.currentTimeMillis()}",
         title = title.ifBlank { "Aftertaste Session" },
@@ -242,5 +226,3 @@ internal fun LlmShowPlan.toShowPlan(candidates: List<Track>, hostConfig: HostCon
         segments = showSegments
     )
 }
-
-private const val MIN_LLM_SHOW_SEGMENTS = 2

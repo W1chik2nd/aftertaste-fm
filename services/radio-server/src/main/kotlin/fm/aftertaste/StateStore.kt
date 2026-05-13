@@ -92,33 +92,38 @@ class StateStore(
         }
     }
 
-    suspend fun recentMemory(limit: Int = RECENT_MEMORY_DEFAULT): List<String> =
+    suspend fun recentMemory(): ContextMemory =
         runCatching {
             newSuspendedTransaction(Dispatchers.IO, database) {
-                val memories = mutableListOf<String>()
-                Plans.selectAll()
+                val plans = Plans.selectAll()
                     .orderBy(Plans.createdAt, SortOrder.DESC)
                     .limit(RECENT_PLANS)
-                    .forEach { memories += "recent_plan=${it[Plans.title]}" }
-                Plays.selectAll()
+                    .map { it[Plans.title] }
+                val plays = Plays.selectAll()
                     .where { Plays.title.isNotNull() }
                     .orderBy(Plays.createdAt, SortOrder.DESC)
                     .limit(RECENT_PLAYS)
-                    .forEach {
-                        memories += "recent_${it[Plays.action]}=${it[Plays.title]} by ${it[Plays.artist]}"
+                    .map {
+                        RecentPlay(
+                            action = it[Plays.action],
+                            title = it[Plays.title] ?: "",
+                            artist = it[Plays.artist]
+                        )
                     }
-                Messages.selectAll()
+                val messages = Messages.selectAll()
                     .orderBy(Messages.createdAt, SortOrder.DESC)
                     .limit(RECENT_MESSAGES)
-                    .forEach {
-                        val cleaned = it[Messages.content].replace(WHITESPACE_REGEX, " ").take(MESSAGE_SNIPPET)
-                        memories += "recent_${it[Messages.role]}_message=$cleaned"
+                    .map {
+                        RecentMessage(
+                            role = it[Messages.role],
+                            content = it[Messages.content].replace(WHITESPACE_REGEX, " ").take(MESSAGE_SNIPPET)
+                        )
                     }
-                memories.take(limit)
+                ContextMemory(recentPlans = plans, recentPlays = plays, recentMessages = messages)
             }
         }.getOrElse {
             logger.warn("StateStore.recentMemory failed: {}", it.message)
-            emptyList()
+            ContextMemory()
         }
 
     private fun upsertPlan(plan: ShowPlan) {
@@ -146,7 +151,6 @@ class StateStore(
         private const val RECENT_PLANS = 2
         private const val RECENT_PLAYS = 4
         private const val RECENT_MESSAGES = 3
-        private const val RECENT_MEMORY_DEFAULT = 8
         private val WHITESPACE_REGEX = Regex("\\s+")
     }
 }

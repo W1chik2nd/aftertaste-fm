@@ -24,12 +24,17 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 private const val UPSTREAM_ERROR_SNIPPET_CHARS = 240
+private const val DEFAULT_LLM_TEMPERATURE = 0.75
+private const val DEFAULT_ANTHROPIC_VERSION = "2023-06-01"
 
 class LlmCompletionClient(
     private val config: LlmRuntimeConfig,
     private val json: Json = HttpClients.sharedJson,
     private val client: HttpClient = HttpClients.shared
 ) {
+    private val temperature: Double = Env.value("LLM_TEMPERATURE")?.toDoubleOrNull() ?: DEFAULT_LLM_TEMPERATURE
+    private val anthropicVersion: String = Env.value("ANTHROPIC_VERSION") ?: DEFAULT_ANTHROPIC_VERSION
+
     suspend fun complete(
         systemPrompt: String,
         userPrompt: String,
@@ -72,7 +77,7 @@ class LlmCompletionClient(
                     })
                 }
                 put("max_output_tokens", maxTokens)
-                put("temperature", Env.value("LLM_TEMPERATURE")?.toDoubleOrNull() ?: 0.75)
+                put("temperature", temperature)
             })
         }.checkedBody()
 
@@ -92,7 +97,7 @@ class LlmCompletionClient(
                     add(buildMessage("user", userPrompt))
                 })
                 put("max_tokens", maxTokens)
-                put("temperature", Env.value("LLM_TEMPERATURE")?.toDoubleOrNull() ?: 0.75)
+                put("temperature", temperature)
                 if (jsonMode) {
                     put("response_format", buildJsonObject {
                         put("type", "json_object")
@@ -109,7 +114,7 @@ class LlmCompletionClient(
     ): String =
         client.post(config.endpoint("v1/messages")) {
             header("x-api-key", config.apiKey)
-            header("anthropic-version", Env.value("ANTHROPIC_VERSION") ?: "2023-06-01")
+            header("anthropic-version", anthropicVersion)
             contentType(ContentType.Application.Json)
             setBody(buildJsonObject {
                 put("model", config.model)
@@ -130,7 +135,7 @@ class LlmCompletionClient(
                     add(buildMessage("user", userPrompt))
                 })
                 put("max_tokens", maxTokens)
-                put("temperature", Env.value("LLM_TEMPERATURE")?.toDoubleOrNull() ?: 0.75)
+                put("temperature", temperature)
             })
         }.checkedBody()
 }

@@ -153,7 +153,10 @@ class NeteaseMusicProvider(
 
     override suspend fun getRecommendations(context: RecommendationContext): List<Track> =
         runCatching { client.get("$baseUrl/recommend/songs").body<List<Track>>() }
-            .getOrElse { fallback?.getRecommendations(context) ?: throw it }
+            .getOrElse { error ->
+                logger.warn("netease getRecommendations fallback: {}", error.message)
+                fallback?.getRecommendations(context) ?: throw error
+            }
             .ifEmpty { fallback?.getRecommendations(context) ?: emptyList() }
 
     override suspend fun healthCheck(): ProviderHealth =

@@ -16,8 +16,10 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
+import io.ktor.server.routing.Route
 import io.ktor.server.routing.routing
 import io.ktor.server.http.content.staticFiles
+import io.ktor.server.websocket.DefaultWebSocketServerSession
 import io.ktor.server.websocket.WebSockets
 import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.Frame
@@ -32,15 +34,35 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.Serializable
 
+private const val DEFAULT_PORT = 8080
+private const val DEFAULT_BIND_HOST = "127.0.0.1"
+private const val DEFAULT_WS_STREAM_INTERVAL_MS = 2000L
+
 fun main() {
-    val port = Env.value("PORT")?.toIntOrNull() ?: 8080
-    val host = Env.value("RADIO_BIND_HOST") ?: "127.0.0.1"
+    val port = Env.value("PORT")?.toIntOrNull() ?: DEFAULT_PORT
+    val host = Env.value("RADIO_BIND_HOST") ?: DEFAULT_BIND_HOST
     embeddedServer(Netty, port = port, host = host) {
         module()
     }.start(wait = true)
 }
 
-fun Application.module() {
+private class AppServices(
+    val json: Json,
+    val hostConfig: HostConfig,
+    val provider: MusicProvider,
+    val neteaseRealProvider: NeteaseMusicProvider,
+    val tasteRepository: TasteProfileRepository,
+    val evidenceLibrary: EvidenceLibraryService,
+    val playlistImportService: PlaylistImportService,
+    val userRecordImportService: NeteaseUserRecordImportService,
+    val engine: RadioEngine,
+    val agentChat: AgentChatService,
+    val jobScope: CoroutineScope,
+    val analysisJobs: AnalysisJobService,
+    val wsStreamIntervalMs: Long
+)
+
+private fun buildServices(): AppServices {
     val json = Json {
         prettyPrint = true
         ignoreUnknownKeys = true
@@ -48,7 +70,7 @@ fun Application.module() {
     }
     val hostConfig = HostConfig(
         hostLanguage = Env.value("HOST_LANGUAGE") ?: "en-US",
-        hostStyle = normalizeHostStyle(Env.value("HOST_VOICE_STYLE")) ?: "calm late-night radio",
+        hostStyle = Env.value("HOST_VOICE_STYLE")?.trim()?.takeIf { it.isNotBlank() } ?: "calm late-night radio",
         hostName = Env.value("HOST_NAME") ?: "Aftertaste",
         segmentSpeechMode = "between_segments"
     )
@@ -65,14 +87,10 @@ fun Application.module() {
     val playlistImportService = PlaylistImportService()
     val userRecordImportService = NeteaseUserRecordImportService(neteaseRealProvider, playlistImportService)
     val engine = RadioEngine(
-        provider,
-        neteaseRealProvider,
-        hostConfig,
-        StateStore(),
+        provider, neteaseRealProvider, hostConfig, StateStore(),
         tasteRepository = tasteRepository,
         playlistImportService = playlistImportService
     )
-    val agentChat = AgentChatService.fromEnvironment()
     val jobScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val analysisJobs = AnalysisJobService(
         imports = playlistImportService,
@@ -80,15 +98,30 @@ fun Application.module() {
         analyzer = TrackAnalysisService.fromEnvironment(),
         scope = jobScope
     )
+    val wsIntervalMs = Env.value("WS_STREAM_INTERVAL_MS")?.toLongOrNull() ?: DEFAULT_WS_STREAM_INTERVAL_MS
+    return AppServices(
+        json, hostConfig, provider, neteaseRealProvider, tasteRepository, evidenceLibrary,
+        playlistImportService, userRecordImportService, engine,
+        AgentChatService.fromEnvironment(), jobScope, analysisJobs, wsIntervalMs
+    )
+}
 
+fun Application.module() {
+    val services = buildServices()
     environment.monitor.subscribe(ApplicationStopping) {
-        analysisJobs.shutdown()
-        jobScope.cancel()
+        services.analysisJobs.shutdown()
+        services.jobScope.cancel()
     }
+    installPlugins(services.json)
+    routing {
+        staticFiles("/media/tts", Env.path("TTS_CACHE_DIR", "cache/tts").toFile())
+        route("/api") { registerApiRoutes(services) }
+        webSocket("/ws/stream") { streamPlayback(services) }
+    }
+}
 
-    install(ContentNegotiation) {
-        json(json)
-    }
+private fun Application.installPlugins(json: Json) {
+    install(ContentNegotiation) { json(json) }
     install(WebSockets)
     install(CORS) {
         // Dev-only: allow localhost origins on any port. Production deployments should restrict this.
@@ -102,101 +135,57 @@ fun Application.module() {
         allowMethod(HttpMethod.Delete)
         allowMethod(HttpMethod.Options)
     }
+}
 
-    routing {
-        staticFiles("/media/tts", Env.path("TTS_CACHE_DIR", "cache/tts").toFile())
+private fun Route.registerApiRoutes(services: AppServices) {
+    val engine = services.engine
+    get("/health") {
+        call.respond(HealthResponse("ok", services.provider.name, services.hostConfig, stationStyleFor(java.time.OffsetDateTime.now())))
+    }
+    get("/health/adapter") {
+        val health = services.neteaseRealProvider.healthCheck()
+        call.respond(AdapterHealthResponse(status = health.status, mode = health.mode))
+    }
+    get("/now") { call.respond(engine.now()) }
+    get("/settings") { call.respond(engine.settings()) }
+    post("/settings/location") {
+        val request = call.receive<LocationRequest>()
+        call.respond(engine.setWeatherLocation(request.location))
+    }
+    post("/weather/refresh") { call.respond(engine.refreshWeather()) }
+    post("/play") { call.respond(engine.play()) }
+    post("/pause") { call.respond(engine.pause()) }
+    post("/next") { call.respond(engine.next()) }
+    post("/previous") { call.respond(engine.previous()) }
+    post("/playback/clear") { call.respond(engine.clearPlayback()) }
+    post("/plan/today") { call.respond(engine.planToday()) }
+    post("/chat") {
+        val request = call.receive<ChatRequest>()
+        call.respond(engine.planToday(request.message, request.routingIntent))
+    }
+    post("/agent/chat") {
+        val request = call.receive<ChatRequest>()
+        engine.rememberMessage("user", request.message)
+        val response = services.agentChat.reply(request.message, engine.now(), services.hostConfig)
+        response.command?.let { engine.handleCommand(it) }
+        engine.rememberMessage("agent", response.message)
+        call.respond(response)
+    }
+    get("/playlist/{id}") { call.respond(engine.playlist(call.parameters["id"].orEmpty())) }
+    get("/lyrics/{id}") { call.respond(engine.lyrics(call.parameters["id"].orEmpty())) }
+    registerImportRoutes(engine, services.playlistImportService, services.evidenceLibrary, services.analysisJobs, services.userRecordImportService)
+    registerTasteRoutes(services.tasteRepository, services.evidenceLibrary)
+}
 
-        route("/api") {
-            get("/health") {
-                call.respond(HealthResponse("ok", provider.name, hostConfig, stationStyleFor(java.time.OffsetDateTime.now())))
-            }
-
-            get("/health/adapter") {
-                val health = neteaseRealProvider.healthCheck()
-                call.respond(AdapterHealthResponse(status = health.status, mode = health.mode))
-            }
-
-            get("/now") {
-                call.respond(engine.now())
-            }
-
-            get("/settings") {
-                call.respond(engine.settings())
-            }
-
-            post("/settings/location") {
-                val request = call.receive<LocationRequest>()
-                call.respond(engine.setWeatherLocation(request.location))
-            }
-
-            post("/weather/refresh") {
-                call.respond(engine.refreshWeather())
-            }
-
-            post("/play") {
-                call.respond(engine.play())
-            }
-
-            post("/pause") {
-                call.respond(engine.pause())
-            }
-
-            post("/next") {
-                call.respond(engine.next())
-            }
-
-            post("/previous") {
-                call.respond(engine.previous())
-            }
-
-            post("/playback/clear") {
-                call.respond(engine.clearPlayback())
-            }
-
-            post("/plan/today") {
-                call.respond(engine.planToday())
-            }
-
-            post("/chat") {
-                val request = call.receive<ChatRequest>()
-                call.respond(engine.planToday(request.message, request.routingIntent))
-            }
-
-            post("/agent/chat") {
-                val request = call.receive<ChatRequest>()
-                engine.rememberMessage("user", request.message)
-                val response = agentChat.reply(request.message, engine.now(), hostConfig)
-                response.command?.let { engine.handleCommand(it) }
-                engine.rememberMessage("agent", response.message)
-                call.respond(response)
-            }
-
-            get("/playlist/{id}") {
-                val id = call.parameters["id"].orEmpty()
-                call.respond(engine.playlist(id))
-            }
-
-            get("/lyrics/{id}") {
-                val id = call.parameters["id"].orEmpty()
-                call.respond(engine.lyrics(id))
-            }
-
-            registerImportRoutes(engine, playlistImportService, evidenceLibrary, analysisJobs, userRecordImportService)
-            registerTasteRoutes(tasteRepository, evidenceLibrary)
+private suspend fun DefaultWebSocketServerSession.streamPlayback(services: AppServices) {
+    var lastSnapshot: String? = null
+    while (isActive) {
+        val snapshot = services.json.encodeToString(services.engine.now())
+        if (snapshot != lastSnapshot) {
+            send(Frame.Text(snapshot))
+            lastSnapshot = snapshot
         }
-
-        webSocket("/ws/stream") {
-            val intervalMs = Env.value("WS_STREAM_INTERVAL_MS")?.toLongOrNull() ?: 2000L
-            var lastSnapshot: String? = null
-            while (isActive) {
-                val snapshot = json.encodeToString(engine.now())
-                if (snapshot != lastSnapshot) {
-                    send(Frame.Text(snapshot))
-                    lastSnapshot = snapshot
-                }
-                delay(intervalMs)
-            }
-        }
+        delay(services.wsStreamIntervalMs)
     }
 }
 
@@ -206,13 +195,3 @@ data class AdapterHealthResponse(
     val mode: String? = null
 )
 
-/**
- * Accept either the user-facing form ("calm late-night radio") or the legacy kebab-case form
- * ("calm-late-night") that earlier versions documented in `.env.example`. We treat a single-token
- * dashed value as a stylistic abbreviation and expand it back to spaces; multi-token values are
- * passed through so styles like "low-key warm-fuzzy" aren't mangled.
- */
-private fun normalizeHostStyle(value: String?): String? {
-    val trimmed = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
-    return if (' ' !in trimmed && '-' in trimmed) trimmed.replace('-', ' ') else trimmed
-}

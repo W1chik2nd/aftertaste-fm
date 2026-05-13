@@ -41,6 +41,12 @@ class HostVoiceService(
     private val fishLatency = Env.value("FISH_TTS_LATENCY") ?: "normal"
     private val fishTemperature = Env.value("FISH_TTS_TEMPERATURE")?.toDoubleOrNull() ?: 0.7
     private val fishTopP = Env.value("FISH_TTS_TOP_P")?.toDoubleOrNull() ?: 0.7
+    private val fishSpeed = Env.value("FISH_TTS_SPEED")?.toDoubleOrNull() ?: 1.0
+    private val fishVolume = Env.value("FISH_TTS_VOLUME")?.toDoubleOrNull() ?: 4.0
+    private val fishSampleRate = Env.value("FISH_TTS_SAMPLE_RATE")?.toIntOrNull() ?: 44100
+    private val fishMp3Bitrate = Env.value("FISH_TTS_MP3_BITRATE")?.toIntOrNull() ?: 128
+    private val fishMaxNewTokens = Env.value("FISH_TTS_MAX_NEW_TOKENS")?.toIntOrNull() ?: 1024
+    private val fishRepetitionPenalty = Env.value("FISH_TTS_REPETITION_PENALTY")?.toDoubleOrNull() ?: 1.2
     private val cacheEnabled = Env.value("FISH_TTS_CACHE")?.lowercase() == "true"
     private val cacheDirectory: Path = Env.path("TTS_CACHE_DIR", "cache/tts")
 
@@ -188,18 +194,18 @@ class HostVoiceService(
         put("temperature", fishTemperature)
         put("top_p", fishTopP)
         putJsonObject("prosody") {
-            put("speed", Env.value("FISH_TTS_SPEED")?.toDoubleOrNull() ?: 1.0)
-            put("volume", Env.value("FISH_TTS_VOLUME")?.toDoubleOrNull() ?: 4.0)
+            put("speed", fishSpeed)
+            put("volume", fishVolume)
             put("normalize_loudness", true)
         }
         put("chunk_length", 300)
         put("normalize", true)
         put("format", fishFormat)
-        put("sample_rate", Env.value("FISH_TTS_SAMPLE_RATE")?.toIntOrNull() ?: 44100)
-        if (fishFormat == "mp3") put("mp3_bitrate", Env.value("FISH_TTS_MP3_BITRATE")?.toIntOrNull() ?: 128)
+        put("sample_rate", fishSampleRate)
+        if (fishFormat == "mp3") put("mp3_bitrate", fishMp3Bitrate)
         put("latency", fishLatency)
-        put("max_new_tokens", Env.value("FISH_TTS_MAX_NEW_TOKENS")?.toIntOrNull() ?: 1024)
-        put("repetition_penalty", Env.value("FISH_TTS_REPETITION_PENALTY")?.toDoubleOrNull() ?: 1.2)
+        put("max_new_tokens", fishMaxNewTokens)
+        put("repetition_penalty", fishRepetitionPenalty)
         put("min_chunk_length", 50)
         put("condition_on_previous_chunks", true)
         put("early_stop_threshold", 1.0)

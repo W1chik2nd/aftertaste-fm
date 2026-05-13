@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 
 const val DEFAULT_CANDIDATE_LIMIT = 72
 const val SEGMENT_TRACK_COUNT = 3
+const val MIN_SHOW_SEGMENTS = 2
 
 @Serializable
 data class TaggedTrack(
