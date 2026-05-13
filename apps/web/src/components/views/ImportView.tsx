@@ -3,7 +3,6 @@ import { Download, Loader2 } from "lucide-react";
 import { radioApi } from "../../api";
 import type { AnalysisJobView, ImportPlaylistResponse, ImportRecord } from "../../types";
 import { ExternalAnalysisDialog } from "./ExternalAnalysisDialog";
-import { ExternalJsonImport } from "./ExternalJsonImport";
 import { ImportRow } from "./ImportRow";
 import { NeteaseUserRecordImport } from "./NeteaseUserRecordImport";
 
@@ -198,8 +197,6 @@ export function ImportView({ onError, onLibraryChanged }: Props) {
           Imported {importResult.trackCount} tracks · ignored {importResult.ignoredDuplicateCount} duplicates
         </p>
       ) : null}
-      <ExternalJsonImport onError={onError} onImported={() => { void loadImports(); onLibraryChanged?.(); }} />
-
       <label className="import-force-toggle">
         <input
           type="checkbox"
@@ -233,6 +230,7 @@ export function ImportView({ onError, onLibraryChanged }: Props) {
           onDownloadDraft={() => void downloadDraft(externalAnalysisRow)}
           onDownloadLyrics={() => void downloadLyrics(externalAnalysisRow)}
           onError={onError}
+          onImported={() => { void loadImports(); onLibraryChanged?.(); }}
         />
       ) : null}
     </section>

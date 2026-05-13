@@ -1,4 +1,7 @@
-import { Clipboard, Download, FileJson, X } from "lucide-react";
+import { Clipboard, Download, FileJson, Loader2, Upload, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { radioApi } from "../../api";
+import type { ImportEvidenceJsonResponse } from "../../externalImportTypes";
 import type { ImportRecord } from "../../types";
 
 const EXTERNAL_ANALYSIS_PROMPT = `Analyze the imported playlist for Aftertaste FM.
@@ -70,9 +73,15 @@ type Props = {
   onDownloadDraft: () => void;
   onDownloadLyrics: () => void;
   onError: (message: string | null) => void;
+  onImported: () => void;
 };
 
-export function ExternalAnalysisDialog({ row, onClose, onDownloadDraft, onDownloadLyrics, onError }: Props) {
+export function ExternalAnalysisDialog({ row, onClose, onDownloadDraft, onDownloadLyrics, onError, onImported }: Props) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [pastedJson, setPastedJson] = useState("");
+  const [result, setResult] = useState<ImportEvidenceJsonResponse | null>(null);
+
   async function copyPrompt() {
     try {
       await navigator.clipboard.writeText(EXTERNAL_ANALYSIS_PROMPT);
@@ -80,6 +89,34 @@ export function ExternalAnalysisDialog({ row, onClose, onDownloadDraft, onDownlo
     } catch (event) {
       console.warn("Could not copy external analysis prompt.", event);
       onError("Could not copy prompt.");
+    }
+  }
+
+  async function importContent(content: string, sourceName: string) {
+    const trimmed = content.trim();
+    if (!trimmed) return;
+    setBusy(true);
+    setResult(null);
+    try {
+      const response = await radioApi.importEvidenceJson(trimmed, sourceName);
+      setResult(response);
+      setPastedJson("");
+      onImported();
+      onError(null);
+    } catch (event) {
+      onError(event instanceof Error ? event.message : "Could not import analyzed JSON.");
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  async function importFile(file: File) {
+    try {
+      await importContent(await file.text(), file.name);
+    } catch (event) {
+      onError(event instanceof Error ? event.message : "Could not read analyzed JSON file.");
+      if (inputRef.current) inputRef.current.value = "";
     }
   }
 
@@ -118,6 +155,49 @@ export function ExternalAnalysisDialog({ row, onClose, onDownloadDraft, onDownlo
         </div>
 
         <textarea className="external-analysis-prompt" readOnly value={EXTERNAL_ANALYSIS_PROMPT} aria-label="External analysis prompt" />
+
+        <div className="external-analysis-import">
+          <div>
+            <span>Import Result</span>
+            <p>Paste the JSON text or choose the file returned by the external AI.</p>
+          </div>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              if (file) void importFile(file);
+            }}
+          />
+          <div className="external-analysis-import-actions">
+            <button type="button" className="secondary-button" onClick={() => inputRef.current?.click()} disabled={busy}>
+              <FileJson size={16} />
+              Choose JSON
+            </button>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => void importContent(pastedJson, `${row.slug}.pasted-analysis.json`)}
+              disabled={busy || !pastedJson.trim()}
+            >
+              {busy ? <Loader2 className="spin" size={16} /> : <Upload size={16} />}
+              Import pasted JSON
+            </button>
+          </div>
+          <textarea
+            className="external-analysis-json"
+            value={pastedJson}
+            onChange={(event) => setPastedJson(event.target.value)}
+            placeholder='{"tracks":[...]}'
+            aria-label="Paste analyzed JSON"
+          />
+          {result ? (
+            <p className="muted-line">
+              Imported {result.importedTrackCount} tracks · ignored {result.ignoredDuplicateCount} duplicates
+            </p>
+          ) : null}
+        </div>
       </section>
     </div>
   );
