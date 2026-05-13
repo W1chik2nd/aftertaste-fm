@@ -12,6 +12,8 @@ Inputs:
 
 Return only one valid JSON object with a top-level "tracks" array. Do not include markdown, comments, or explanations outside the JSON.
 
+If your chat interface supports creating downloadable files, put the JSON into a file named aftertaste-analysis.json and attach that file instead of printing the full JSON in the chat. If file output is not available, return compact JSON text without pretty-printing to keep the conversation responsive.
+
 For every track, keep provider, id, title, artist, album, durationMs, coverUrl, and playCount exactly as they appear in the draft. If playCount exists, use it only as user_behavior evidence for familiarity and durable preference strength. High playCount does not automatically mean high energy, happy mood, or better fit for every moment.
 
 Each track must use this shape:
