@@ -1,9 +1,9 @@
 import cors from "cors";
 import express from "express";
 import { loadEnv } from "./env";
-import { mockPlaylist, mockStream, mockTracks } from "./mock";
+import { mockPlaylist, mockStream, mockTracks, mockUserRecord } from "./mock";
 import { NeteaseClient } from "./neteaseClient";
-import { normalizePlaylist, normalizeStreams, normalizeTrack } from "./normalize";
+import { normalizePlaylist, normalizeStreams, normalizeTrack, normalizeUserRecord } from "./normalize";
 
 loadEnv();
 
@@ -104,6 +104,21 @@ app.get("/playlist/detail", asyncHandler(async (request, response) => {
     return;
   }
   response.json(playlist);
+}));
+
+app.get("/user/record", asyncHandler(async (request, response) => {
+  const uid = String(request.query.uid ?? "").trim();
+  const type = String(request.query.type ?? "0").trim() || "0";
+  if (!uid) {
+    response.status(400).json({ error: "missing_uid", message: "uid is required." });
+    return;
+  }
+  if (mockMode) {
+    response.json(mockUserRecord(uid, type));
+    return;
+  }
+  const raw = await client.userRecord(uid, type);
+  response.json(normalizeUserRecord(raw, uid, type));
 }));
 
 app.get("/recommend/songs", asyncHandler(async (_request, response) => {

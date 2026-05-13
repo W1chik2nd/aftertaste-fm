@@ -15,6 +15,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
+import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -22,6 +23,10 @@ import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
 import java.time.OffsetDateTime
 import kotlin.random.Random
+
+private const val FISH_ERROR_BODY_CHARS = 220
+private const val HOST_CACHE_KEY_CHARS = 24
+private const val TTS_THROWAWAY_RETENTION_MS = 24L * 60 * 60 * 1000
 
 class HostVoiceService(
     private val httpClient: HttpClient = HttpClients.shared
@@ -49,6 +54,7 @@ class HostVoiceService(
         val clock = OffsetDateTime.now()
         val timeText = "%d:%02d".format(clock.hour, clock.minute)
         val mood = hostMoodLabel(context)
+        val station = context.stationStyle?.label?.lowercase() ?: "the station"
         val leadLine = lead?.let { "Now, ${it.artist}, ${it.title}." } ?: "Let this chapter take its time."
         val leadIntro = lead?.let { "${it.title} by ${it.artist}" } ?: "this next record"
         val weather = context.weather?.let {
@@ -57,24 +63,24 @@ class HostVoiceService(
         val seed = listOf(segmentTitle, context.variationSeed, lead?.id).joinToString("|").hashCode()
         val firstChapterOpenings = listOf(
             "It is $timeText now.$weather We start quietly, with $leadIntro close enough to feel personal and far enough away to leave some room.",
-            "$timeText.$weather This first chapter does not need a grand entrance. $leadIntro can come in like someone lowering their voice at the end of the day.",
-            "The hour is $timeText.$weather For the first record, we keep the lights low and let $leadIntro set the pace without announcing itself too hard.",
+            "$timeText.$weather This first chapter does not need a grand entrance. $leadIntro can come in at the pace of $station.",
+            "The hour is $timeText.$weather For the first record, we keep it close and let $leadIntro set the pace without announcing itself too hard.",
             "${weather.trimStart()} The clock says $timeText, and this opening chapter is more about settling than declaring. $leadIntro gives us that first soft edge."
         )
         return when (chapterIndex) {
             0 -> "${firstChapterOpenings.randomBy(seed)} It keeps close to $mood without forcing the feeling into shape. $leadLine"
             1 -> listOf(
-                "A few songs in, the night has changed texture. This chapter stays with what remains after the noise falls away. $leadIntro gives that feeling a center, then the next songs get to move cleanly around it. $leadLine",
-                "We turn a little, but we do not break the spell. $leadIntro keeps the room low and steady, the kind of song that lets memory be present without making a speech out of it. $leadLine",
+                "A few songs in, the station has changed texture. This chapter stays with what remains after the noise falls away. $leadIntro gives that feeling a center, then the next songs get to move cleanly around it. $leadLine",
+                "We turn a little, but we do not break the spell. $leadIntro keeps things close and steady, the kind of song that lets memory be present without making a speech out of it. $leadLine",
                 "The second chapter should feel less like a reset and more like a handoff. $leadIntro carries the thread forward, soft at the edges and clear in the middle. $leadLine"
             ).randomBy(seed)
             2 -> listOf(
-                "This is where the room gets a little wider. Not brighter exactly, just less closed in. $leadIntro gives the chapter more air while keeping the late-night pulse intact. $leadLine",
+                "This is where the room gets a little wider. $leadIntro gives the chapter more air while keeping the pulse of $station intact. $leadLine",
                 "Now we let the show breathe out. $leadIntro opens a wider lane, still careful, still close, but no longer holding every thought in place. $leadLine",
                 "The middle has done its quiet work, so this chapter can lift without rushing. $leadIntro is the door opening a little farther. $leadLine"
             ).randomBy(seed)
             else -> listOf(
-                "For the last chapter, we do not need to explain too much. The point is to leave the night somewhere softer than where it began, and $leadIntro feels right for that. $leadLine",
+                "For the last chapter, we do not need to explain too much. The point is to leave the hour somewhere softer than where it began, and $leadIntro feels right for that. $leadLine",
                 "We take the final turn without tying a ribbon around it. $leadIntro can carry us out slowly, with enough distance to feel calm and enough warmth to stay near. $leadLine",
                 "This last stretch is for letting the room settle. $leadIntro does not demand an answer; it just gives the ending somewhere gentle to land. $leadLine"
             ).randomBy(seed)
@@ -88,7 +94,7 @@ class HostVoiceService(
             routing.language?.startsWith("zh") == true && routing.energy == "low" -> "a low-energy Chinese indie thread"
             routing.routine == "late-night-coding" -> "late-night focus with the edges softened"
             routing.energy == "low" -> "a quiet, low-energy stretch"
-            context.mood.isNullOrBlank() -> "that late-night feeling where memory is present, but not loud"
+            context.mood.isNullOrBlank() -> context.stationStyle?.hostStyle ?: "that quiet feeling where memory is present, but not loud"
             else -> "the feeling you asked for"
         }
     }
@@ -103,6 +109,7 @@ class HostVoiceService(
         val outputFile = if (cacheEnabled) {
             cacheDirectory.resolve("$digest.$extension")
         } else {
+            sweepStaleThrowaways(extension)
             cacheDirectory.resolve("$digest-${System.currentTimeMillis()}.$extension")
         }
         if (cacheEnabled && Files.exists(outputFile)) {
@@ -127,7 +134,7 @@ class HostVoiceService(
                 setBody(buildFishPayload(script).toString())
             }
             if (response.status.value !in 200..299) {
-                val reason = runCatching { response.bodyAsText().take(220) }.getOrNull()
+                val reason = response.bodyAsText().take(FISH_ERROR_BODY_CHARS)
                 logger.warn("Fish TTS HTTP {}: {}", response.status.value, reason)
                 return@withContext HostVoiceAsset(script = script, audioUrl = null, cacheKey = digest)
             }
@@ -140,19 +147,40 @@ class HostVoiceService(
             ).use { sink ->
                 response.bodyAsChannel().copyTo(sink)
             }
-            runCatching {
+            try {
                 Files.move(tempFile, outputFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
-            }.getOrElse {
+            } catch (unsupported: AtomicMoveNotSupportedException) {
                 Files.move(tempFile, outputFile, StandardCopyOption.REPLACE_EXISTING)
             }
             HostVoiceAsset(script = script, audioUrl = "/media/tts/${outputFile.fileName}", cacheKey = digest)
         }
 
+    private fun sweepStaleThrowaways(extension: String) {
+        if (!Files.exists(cacheDirectory)) return
+        val cutoff = System.currentTimeMillis() - TTS_THROWAWAY_RETENTION_MS
+        try {
+            Files.list(cacheDirectory).use { stream ->
+                stream
+                    .filter { path ->
+                        val name = path.fileName.toString()
+                        name.endsWith(".$extension") && name.contains('-') &&
+                            Files.getLastModifiedTime(path).toMillis() < cutoff
+                    }
+                    .forEach { path ->
+                        runCatching { Files.deleteIfExists(path) }
+                            .onFailure { logger.debug("Could not delete stale TTS file {}: {}", path, it.message) }
+                    }
+            }
+        } catch (cause: java.io.IOException) {
+            logger.debug("TTS cache sweep failed: {}", cause.message)
+        }
+    }
+
     private fun cacheKey(script: String): String =
         MessageDigest.getInstance("SHA-256")
             .digest("$fishModel|${fishVoiceId.orEmpty()}|$fishFormat|$script".toByteArray())
             .joinToString("") { "%02x".format(it) }
-            .take(24)
+            .take(HOST_CACHE_KEY_CHARS)
 
     private fun buildFishPayload(script: String) = buildJsonObject {
         put("text", script)

@@ -33,8 +33,15 @@ export function LyricsPanel({ lines, activeIndex, loading, trackTitle }: Props) 
   }, []);
 
   useEffect(() => {
-    if (userScrolling) return;
-    activeRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (userScrolling || activeIndex < 0) return;
+    const container = containerRef.current;
+    const active = activeRef.current;
+    if (!container || !active) return;
+    const containerRect = container.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    const activeCenter = activeRect.top - containerRect.top + activeRect.height / 2;
+    const targetTop = container.scrollTop + activeCenter - container.clientHeight / 2;
+    container.scrollTo({ top: targetTop, behavior: "smooth" });
   }, [activeIndex, userScrolling]);
 
   if (loading) {

@@ -11,6 +11,8 @@
     "build:adapter": "npm --prefix apps/netease-adapter run build",
     "build:server": "cd services/radio-server && ./gradlew build",
     "analyze:playlist": "node scripts/analyze-playlist-openai.mjs",
+    "build:evidence": "node scripts/build-evidence-aggregate.mjs",
+    "split:evidence": "node scripts/split-evidence-aggregate.mjs",
     "build:profile": "node scripts/build-taste-profile.mjs"
   }
 }

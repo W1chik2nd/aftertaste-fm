@@ -6,6 +6,7 @@ export type Track = {
   album: string | null;
   durationMs: number | null;
   coverUrl: string | null;
+  playCount?: number | null;
 };
 
 export type StreamUrl = {

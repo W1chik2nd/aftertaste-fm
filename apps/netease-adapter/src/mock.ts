@@ -1,5 +1,8 @@
 import type { Playlist, StreamUrl, Track } from "./types";
 
+const MOCK_PLAY_COUNT_START = 96;
+const MOCK_PLAY_COUNT_STEP = 13;
+
 export const mockTracks: Track[] = [
   {
     provider: "netease",
@@ -76,5 +79,19 @@ export function mockPlaylist(id: string): Playlist {
     description: "Normalized mock playlist returned by the adapter when Netease is not configured.",
     coverUrl: mockTracks[0]?.coverUrl ?? null,
     tracks: mockTracks
+  };
+}
+
+export function mockUserRecord(uid: string, type: string): Playlist {
+  return {
+    provider: "netease",
+    id: `user-record-${uid}-${type}`,
+    name: type === "1" ? "Mock weekly listening ranking" : "Mock all-time listening ranking",
+    description: "Mock listening ranking for local import testing.",
+    coverUrl: mockTracks[0]?.coverUrl ?? null,
+    tracks: mockTracks.map((track, index) => ({
+      ...track,
+      playCount: MOCK_PLAY_COUNT_START - index * MOCK_PLAY_COUNT_STEP
+    }))
   };
 }

@@ -15,7 +15,8 @@ export function normalizeTrack(raw: AnyRecord): Track {
     artist: artist || "Unknown artist",
     album: raw.al?.name ?? raw.album?.name ?? raw.album ?? null,
     durationMs: Number(raw.dt ?? raw.duration ?? raw.durationMs) || null,
-    coverUrl: raw.al?.picUrl ?? raw.album?.picUrl ?? raw.coverUrl ?? null
+    coverUrl: raw.al?.picUrl ?? raw.album?.picUrl ?? raw.coverUrl ?? null,
+    playCount: Number.isFinite(Number(raw.playCount)) ? Number(raw.playCount) : null
   };
 }
 
@@ -50,6 +51,21 @@ export function normalizePlaylist(raw: AnyRecord, id: string): Playlist {
     name: String(playlist.name ?? "Untitled playlist"),
     description: playlist.description ?? null,
     coverUrl: playlist.coverImgUrl ?? playlist.coverUrl ?? null,
+    tracks
+  };
+}
+
+export function normalizeUserRecord(raw: AnyRecord, uid: string, type: string): Playlist {
+  const records = type === "1" ? raw.weekData : raw.allData;
+  const tracks = Array.isArray(records)
+    ? records.map((record) => normalizeTrack({ ...(record.song ?? {}), playCount: record.playCount }))
+    : [];
+  return {
+    provider: "netease",
+    id: `user-record-${uid}-${type}`,
+    name: type === "1" ? "Netease weekly listening ranking" : "Netease all-time listening ranking",
+    description: "Songs from Netease listening ranking, weighted by playCount.",
+    coverUrl: tracks[0]?.coverUrl ?? null,
     tracks
   };
 }
