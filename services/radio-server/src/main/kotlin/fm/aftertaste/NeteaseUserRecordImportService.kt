@@ -4,8 +4,7 @@ class NeteaseUserRecordImportException(message: String) : RuntimeException(messa
 
 class NeteaseUserRecordImportService(
     private val provider: NeteaseMusicProvider,
-    private val imports: PlaylistImportService,
-    private val evidence: EvidenceLibraryService
+    private val imports: PlaylistImportService
 ) {
     suspend fun importAllTime(uid: String): ImportPlaylistResponse {
         val cleanUid = uid.trim().takeIf { it.isNotBlank() }
@@ -16,12 +15,10 @@ class NeteaseUserRecordImportService(
             throw NeteaseUserRecordImportException(cause.message ?: "Netease listening ranking import failed.")
         }
         val lyricsByTrackId = fetchLyrics(playlist)
-        evidence.mergeUserBehavior(playlist.tracks)
         return imports.save(
             source = "netease:user-record:$cleanUid:type=all",
             playlist = playlist,
-            lyricsByTrackId = lyricsByTrackId,
-            includeExistingTracks = true
+            lyricsByTrackId = lyricsByTrackId
         )
     }
 

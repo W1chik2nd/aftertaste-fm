@@ -18,8 +18,6 @@ private const val DEFAULT_TASTE_TRACK_LIMIT = 50
 private const val MAX_TASTE_TRACK_LIMIT = 200
 private const val DOMINANT_TAG_LIMIT = 5
 private const val CONFIDENCE_DECIMAL_PLACES = 100.0
-private const val PLAY_COUNT_FAMILIARITY_SATURATION = 80.0
-private const val USER_BEHAVIOR_CONFIDENCE = 0.72
 
 data class TasteTrackQuery(
     val language: String?,
@@ -71,20 +69,6 @@ class EvidenceLibraryService(
         ensureCache()[cacheKey(provider, id)]
 
     suspend fun list(): List<EvidenceTrackAnalysis> = ensureCache().values.toList()
-
-    suspend fun mergeUserBehavior(tracks: List<Track>): Int {
-        val byIdentity = list().associateBy { it.identity() }
-        var updated = 0
-        for (track in tracks) {
-            val playCount = track.playCount ?: continue
-            val existing = byIdentity[track.identity()] ?: continue
-            if (existing.playCount == playCount && existing.evidence.userBehavior) continue
-            save(existing.withPlayCount(playCount))
-            updated += 1
-        }
-        if (updated > 0) rebuildAggregate()
-        return updated
-    }
 
     suspend fun query(query: TasteTrackQuery): TasteTracksResponse {
         val filtered = list()
@@ -252,19 +236,4 @@ class EvidenceLibraryService(
         }
 
     private fun nowIso(): String = OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-
-    private fun EvidenceTrackAnalysis.withPlayCount(playCount: Int): EvidenceTrackAnalysis {
-        val familiarity = (playCount / PLAY_COUNT_FAMILIARITY_SATURATION).coerceIn(0.0, 1.0)
-        return copy(
-            playCount = playCount,
-            evidence = evidence.copy(userBehavior = true),
-            scores = scores.copy(
-                familiarity = EvidenceValueDouble(
-                    value = familiarity,
-                    confidence = maxOf(scores.familiarity.confidence, USER_BEHAVIOR_CONFIDENCE),
-                    evidence = (scores.familiarity.evidence + "user_behavior").distinct()
-                )
-            )
-        )
-    }
 }
