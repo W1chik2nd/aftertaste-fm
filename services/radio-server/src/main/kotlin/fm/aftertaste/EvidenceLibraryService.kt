@@ -29,7 +29,8 @@ data class TasteTrackQuery(
 )
 
 class EvidenceLibraryService(
-    private val tastePath: Path = Env.path("TASTE_DATA_DIR", "data/taste")
+    private val tastePath: Path = Env.path("TASTE_DATA_DIR", "data/taste"),
+    private val profileBuilder: TasteProfileBuilder = TasteProfileBuilder(tastePath)
 ) {
     private val logger = LoggerFactory.getLogger(EvidenceLibraryService::class.java)
     private val json = HttpClients.sharedJson
@@ -107,6 +108,7 @@ class EvidenceLibraryService(
                 tracks = tracks
             )
             AtomicFiles.writeStringBlocking(aggregatePath, json.encodeToString(aggregate) + "\n")
+            profileBuilder.write(aggregate)
             aggregate
         }
     }

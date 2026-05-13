@@ -314,6 +314,7 @@ Body:
 ```
 
 Starts an in-memory analysis job and returns immediately. `force=false` skips tracks that already have per-track evidence.
+When the job writes or updates evidence, the server rebuilds `tracks.evidence.json`, `profile.md`, and `rules.json`.
 The analyzer now asks the LLM for one strict JSON object per track. OpenAI Responses receives the same contract as a structured response schema; compatible chat APIs receive it in the system prompt. The stored evidence keeps both runtime-friendly typed values and human-readable analysis notes.
 
 Analysis output shape excerpt. The strict schema requires every score field listed here: `energy`, `valence`, `night`, `coding`, `skipRisk`, `danceability`, `acousticness`, `speechiness`, `instrumentalness`, `liveness`, `emotionalIntensity`, `lyricalFocus`, `mainstreamAppeal`.
