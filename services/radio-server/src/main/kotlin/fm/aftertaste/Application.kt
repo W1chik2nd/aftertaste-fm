@@ -63,7 +63,7 @@ fun Application.module() {
     val tasteRepository = TasteProfileRepository()
     val evidenceLibrary = EvidenceLibraryService()
     val playlistImportService = PlaylistImportService()
-    val userRecordImportService = NeteaseUserRecordImportService(neteaseRealProvider, playlistImportService)
+    val userRecordImportService = NeteaseUserRecordImportService(neteaseRealProvider, playlistImportService, evidenceLibrary)
     val engine = RadioEngine(
         provider,
         neteaseRealProvider,

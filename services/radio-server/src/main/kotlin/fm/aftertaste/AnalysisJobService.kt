@@ -76,7 +76,8 @@ class AnalysisJobService(
         val scoped = draft.tracks.filter { requestedIds == null || it.id in requestedIds }
         if (request.force) return scoped
         val existing = evidence.existingKeys()
-        return scoped.filterNot { "${it.provider}:${it.id}" in existing }
+        val existingIdentities = evidence.list().map { it.identity() }.toSet()
+        return scoped.filterNot { "${it.provider}:${it.id}" in existing || it.identity() in existingIdentities }
     }
 
     private suspend fun runJob(

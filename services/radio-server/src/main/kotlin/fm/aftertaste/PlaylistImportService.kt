@@ -39,7 +39,8 @@ class PlaylistImportService(
     suspend fun save(
         source: String,
         playlist: Playlist,
-        lyricsByTrackId: Map<String, String?>
+        lyricsByTrackId: Map<String, String?>,
+        includeExistingTracks: Boolean = false
     ): ImportPlaylistResponse {
         val importedAt = nowIso()
         val slug = slugFor(playlist)
@@ -53,15 +54,17 @@ class PlaylistImportService(
         val uniqueTracks = identitiesMutex.withLock {
             playlist.tracks.filter { track -> identities.add(track.identity()) }
         }
+        val importTracks = if (includeExistingTracks) playlist.tracks.distinctBy { it.identity() } else uniqueTracks
         val ignoredDuplicateCount = playlist.tracks.size - uniqueTracks.size
-        if (uniqueTracks.isEmpty() && existingRaw == null) {
+        if (!includeExistingTracks && uniqueTracks.isEmpty() && existingRaw == null) {
             return duplicateOnlyResponse(slug, playlist, importedAt, ignoredDuplicateCount, rawPath, draftPath, lyricPath)
         }
-        val combinedTracks = (existingRaw?.playlist?.tracks.orEmpty() + uniqueTracks)
+        val combinedTracks = (existingRaw?.playlist?.tracks.orEmpty() + importTracks)
             .distinctBy { it.identity() }
         val uniquePlaylist = playlist.copy(tracks = combinedTracks)
         val mergedLyricsByTrackId = existingLyrics?.lyricsByTrackId.orEmpty() +
-            uniqueTracks.associate { track -> track.id to lyricsByTrackId[track.id] }
+            importTracks.associate { track -> track.id to lyricsByTrackId[track.id] }
+        val draftTracks = draftTracks(existingDraft, importTracks)
 
         val raw = ImportedPlaylistFile(importedAt = importedAt, source = source, playlist = uniquePlaylist)
         val draft = TaggedPlaylistDraft(
@@ -69,7 +72,7 @@ class PlaylistImportService(
             source = source,
             playlistId = uniquePlaylist.id,
             playlistName = uniquePlaylist.name,
-            tracks = existingDraft?.tracks.orEmpty() + uniqueTracks.map { it.toTaggedDraft() }
+            tracks = existingDraft?.tracks.orEmpty() + draftTracks.map { it.toTaggedDraft() }
         )
         val lyrics = ImportedLyricsFile(
             importedAt = importedAt,
@@ -81,8 +84,11 @@ class PlaylistImportService(
 
         writeImportFiles(rawPath, draftPath, lyricPath, raw, draft, lyrics)
 
-        return importResponse(slug, uniquePlaylist, importedAt, uniqueTracks, ignoredDuplicateCount, mergedLyricsByTrackId, rawPath, draftPath, lyricPath)
+        return importResponse(slug, uniquePlaylist, importedAt, importTracks, ignoredDuplicateCount, mergedLyricsByTrackId, rawPath, draftPath, lyricPath)
     }
+
+    private fun draftTracks(existingDraft: TaggedPlaylistDraft?, tracks: List<Track>): List<Track> =
+        tracks.filterNot { it.identity() in existingDraft?.tracks.orEmpty().map { track -> track.identity() }.toSet() }
 
     private fun duplicateOnlyResponse(slug: String, playlist: Playlist, importedAt: String, ignoredDuplicateCount: Int, rawPath: Path, draftPath: Path, lyricPath: Path): ImportPlaylistResponse =
         ImportPlaylistResponse(slug, playlist.id, playlist.name, importedAt, 0, ignoredDuplicateCount, 0, 0, rawPath.toString(), draftPath.toString(), lyricPath.toString(), "All tracks already exist in the import library.")
