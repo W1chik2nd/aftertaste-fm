@@ -184,21 +184,16 @@ fun Application.module() {
             registerTasteRoutes(tasteRepository, evidenceLibrary)
         }
 
-        val wsLogger = org.slf4j.LoggerFactory.getLogger("fm.aftertaste.WsStream")
         webSocket("/ws/stream") {
             val intervalMs = Env.value("WS_STREAM_INTERVAL_MS")?.toLongOrNull() ?: 2000L
-            try {
-                var lastSnapshot: String? = null
-                while (isActive) {
-                    val snapshot = json.encodeToString(engine.now())
-                    if (snapshot != lastSnapshot) {
-                        send(Frame.Text(snapshot))
-                        lastSnapshot = snapshot
-                    }
-                    delay(intervalMs)
+            var lastSnapshot: String? = null
+            while (isActive) {
+                val snapshot = json.encodeToString(engine.now())
+                if (snapshot != lastSnapshot) {
+                    send(Frame.Text(snapshot))
+                    lastSnapshot = snapshot
                 }
-            } catch (cause: Throwable) {
-                wsLogger.debug("ws/stream closed: {}", cause.message)
+                delay(intervalMs)
             }
         }
     }

@@ -138,7 +138,11 @@ data class TrackScoresView(
     val valence: Double,
     val night: Double,
     val coding: Double,
-    val skipRisk: Double
+    val skipRisk: Double,
+    val speechiness: Double,
+    val emotionalIntensity: Double,
+    val lyricalFocus: Double,
+    val mainstreamAppeal: Double
 )
 
 @Serializable

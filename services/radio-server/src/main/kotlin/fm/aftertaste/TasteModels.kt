@@ -67,7 +67,25 @@ data class EvidenceScores(
     val lyricDensity: EvidenceValueDouble = EvidenceValueDouble(0.5, 0.0),
     val vocalPresence: EvidenceValueDouble = EvidenceValueDouble(0.5, 0.0),
     val familiarity: EvidenceValueDouble = EvidenceValueDouble(0.5, 0.0),
-    val intensity: EvidenceValueDouble = EvidenceValueDouble(0.5, 0.0)
+    val intensity: EvidenceValueDouble = EvidenceValueDouble(0.5, 0.0),
+    val speechiness: EvidenceValueDouble = EvidenceValueDouble(0.5, 0.0),
+    val instrumentalness: EvidenceValueDouble = EvidenceValueDouble(0.5, 0.0),
+    val liveness: EvidenceValueDouble = EvidenceValueDouble(0.5, 0.0),
+    val emotionalIntensity: EvidenceValueDouble = EvidenceValueDouble(0.5, 0.0),
+    val lyricalFocus: EvidenceValueDouble = EvidenceValueDouble(0.5, 0.0),
+    val mainstreamAppeal: EvidenceValueDouble = EvidenceValueDouble(0.5, 0.0)
+)
+
+@Serializable
+data class EvidenceDetail(
+    val tag: String,
+    val evidenceString: String
+)
+
+@Serializable
+data class EvidenceNotes(
+    val summary: String,
+    val evidence: List<EvidenceDetail> = emptyList()
 )
 
 @Serializable
@@ -98,6 +116,7 @@ data class EvidenceTrackAnalysis(
     val evidence: TrackEvidenceState = TrackEvidenceState(),
     val lyricExcerpt: String? = null,
     val notes: String? = null,
+    val analysisNotes: EvidenceNotes? = null,
     val needsReview: Boolean = true,
     val lastAnalyzedAt: String? = null
 ) {
@@ -121,7 +140,7 @@ data class EvidenceTrackAnalysis(
             nightScore = scores.night.value,
             codingScore = scores.coding.value,
             skipRisk = scores.skipRisk.value,
-            notes = notes
+            notes = analysisNotes?.summary ?: notes
         )
     }
 }

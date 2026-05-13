@@ -199,6 +199,10 @@ function TrackDetail({ track, loading }: { track: EvidenceTrackAnalysis | null; 
           <ScoreBar label="night" value={track.scores.night.value} />
           <ScoreBar label="coding" value={track.scores.coding.value} />
           <ScoreBar label="skip risk" value={track.scores.skipRisk.value} />
+          <ScoreBar label="speech" value={track.scores.speechiness.value} />
+          <ScoreBar label="lyrical" value={track.scores.lyricalFocus.value} />
+          <ScoreBar label="emotional" value={track.scores.emotionalIntensity.value} />
+          <ScoreBar label="mainstream" value={track.scores.mainstreamAppeal.value} />
         </div>
       </section>
       <TagGroup title="Mood" tags={track.moodTags} />
@@ -210,7 +214,17 @@ function TrackDetail({ track, loading }: { track: EvidenceTrackAnalysis | null; 
         <p className="muted-line">
           metadata {yesNo(track.evidence.metadata)} · lyrics {yesNo(track.evidence.lyrics)} · model {yesNo(track.evidence.model)}
         </p>
-        {track.notes ? <p>{track.notes}</p> : null}
+        {track.analysisNotes?.summary ? <p>{track.analysisNotes.summary}</p> : track.notes ? <p>{track.notes}</p> : null}
+        {track.analysisNotes?.evidence.length ? (
+          <div className="evidence-list">
+            {track.analysisNotes.evidence.map((item) => (
+              <p key={`${item.tag}-${item.evidenceString}`}>
+                <strong>{item.tag}</strong>
+                {item.evidenceString}
+              </p>
+            ))}
+          </div>
+        ) : null}
       </section>
     </aside>
   );

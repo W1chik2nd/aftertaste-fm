@@ -171,7 +171,11 @@ class EvidenceLibraryService(
                 valence = scores.valence.value,
                 night = scores.night.value,
                 coding = scores.coding.value,
-                skipRisk = scores.skipRisk.value
+                skipRisk = scores.skipRisk.value,
+                speechiness = scores.speechiness.value,
+                emotionalIntensity = scores.emotionalIntensity.value,
+                lyricalFocus = scores.lyricalFocus.value,
+                mainstreamAppeal = scores.mainstreamAppeal.value
             ),
             confidence = confidence(),
             needsReview = needsReview,
@@ -198,7 +202,11 @@ class EvidenceLibraryService(
             scores.valence.confidence,
             scores.night.confidence,
             scores.coding.confidence,
-            scores.skipRisk.confidence
+            scores.skipRisk.confidence,
+            scores.speechiness.confidence,
+            scores.emotionalIntensity.confidence,
+            scores.lyricalFocus.confidence,
+            scores.mainstreamAppeal.confidence
         ) + tagGroups
         return (values.average() * CONFIDENCE_DECIMAL_PLACES).toInt() / CONFIDENCE_DECIMAL_PLACES
     }

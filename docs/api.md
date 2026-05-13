@@ -245,6 +245,33 @@ Body:
 ```
 
 Starts an in-memory analysis job and returns immediately. `force=false` skips tracks that already have per-track evidence.
+The analyzer now asks the LLM for one strict JSON object per track. OpenAI Responses receives the same contract as a structured response schema; compatible chat APIs receive it in the system prompt. The stored evidence keeps both runtime-friendly typed values and human-readable analysis notes.
+
+Analysis output shape excerpt. The strict schema requires every score field listed here: `energy`, `valence`, `night`, `coding`, `skipRisk`, `danceability`, `acousticness`, `speechiness`, `instrumentalness`, `liveness`, `emotionalIntensity`, `lyricalFocus`, `mainstreamAppeal`.
+
+```json
+{
+  "language": { "value": "zh", "confidence": 0.9, "evidence": ["lyrics"] },
+  "moodTags": [{ "tag": "reflective", "confidence": 0.8, "evidence": ["lyrics"] }],
+  "contextTags": [],
+  "soundTags": [],
+  "useTags": [],
+  "scores": {
+    "energy": { "value": 0.52, "confidence": 0.66, "evidence": ["model_inference"] },
+    "valence": { "value": 0.58, "confidence": 0.66, "evidence": ["lyrics"] },
+    "night": { "value": 0.7, "confidence": 0.6, "evidence": ["model_inference"] },
+    "coding": { "value": 0.3, "confidence": 0.5, "evidence": ["model_inference"] },
+    "skipRisk": { "value": 0.2, "confidence": 0.6, "evidence": ["model_inference"] },
+    "speechiness": { "value": 0.86, "confidence": 0.66, "evidence": ["model_inference"] },
+    "lyricalFocus": { "value": 0.95, "confidence": 0.66, "evidence": ["lyrics"] }
+  },
+  "notes": {
+    "summary": "short paraphrased analysis",
+    "evidence": [{ "tag": "family", "evidenceString": "lyrics paraphrase the family theme" }]
+  },
+  "needsReview": false
+}
+```
 
 ```json
 {

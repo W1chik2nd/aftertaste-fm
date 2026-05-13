@@ -193,99 +193,13 @@ export type AnalysisJobView = {
   finishedAt?: string | null;
 };
 
-export type EvidenceValueString = {
-  value: string;
-  confidence: number;
-  evidence: string[];
-};
-
-export type EvidenceValueDouble = {
-  value: number;
-  confidence: number;
-  evidence: string[];
-};
-
-export type EvidenceTag = {
-  tag: string;
-  confidence: number;
-  evidence: string[];
-};
-
-export type EvidenceScores = {
-  energy: EvidenceValueDouble;
-  valence: EvidenceValueDouble;
-  night: EvidenceValueDouble;
-  coding: EvidenceValueDouble;
-  skipRisk: EvidenceValueDouble;
-  danceability: EvidenceValueDouble;
-  acousticness: EvidenceValueDouble;
-  lyricDensity: EvidenceValueDouble;
-  vocalPresence: EvidenceValueDouble;
-  familiarity: EvidenceValueDouble;
-  intensity: EvidenceValueDouble;
-};
-
-export type TrackEvidenceState = {
-  metadata: boolean;
-  lyrics: boolean;
-  audioFeatures: boolean;
-  userBehavior: boolean;
-  manual: boolean;
-  model: boolean;
-};
-
-export type EvidenceTrackAnalysis = {
-  provider: string;
-  id: string;
-  title: string;
-  artist: string;
-  album?: string | null;
-  durationMs?: number | null;
-  coverUrl?: string | null;
-  language: EvidenceValueString;
-  moodTags: EvidenceTag[];
-  contextTags: EvidenceTag[];
-  soundTags: EvidenceTag[];
-  useTags: EvidenceTag[];
-  scores: EvidenceScores;
-  evidence: TrackEvidenceState;
-  lyricExcerpt?: string | null;
-  notes?: string | null;
-  needsReview: boolean;
-  lastAnalyzedAt?: string | null;
-};
-
-export type TrackScoresView = {
-  energy: number;
-  valence: number;
-  night: number;
-  coding: number;
-  skipRisk: number;
-};
-
-export type TaggedTrackView = {
-  provider: string;
-  id: string;
-  title: string;
-  artist: string;
-  album?: string | null;
-  coverUrl?: string | null;
-  language: string;
-  dominantTags: string[];
-  scores: TrackScoresView;
-  confidence: number;
-  needsReview: boolean;
-  lastAnalyzedAt?: string | null;
-};
-
-export type TasteTracksResponse = {
-  tracks: TaggedTrackView[];
-  total: number;
-};
-
-export type TasteTagsResponse = {
-  tags: string[];
-};
+export type {
+  EvidenceTag,
+  EvidenceTrackAnalysis,
+  TaggedTrackView,
+  TasteTagsResponse,
+  TasteTracksResponse
+} from "./evidenceTypes";
 
 export type TasteProfileResponse = {
   profileText: string;
