@@ -174,3 +174,17 @@ data class ImportEvidenceJsonResponse(
     val totalTrackCount: Int,
     val sourceName: String? = null
 )
+
+@Serializable
+data class DeleteImportResponse(
+    val slug: String,
+    val deleted: Boolean,
+    val deletedTrackEvidenceCount: Int
+)
+
+@Serializable
+data class DeleteTrackEvidenceResponse(
+    val provider: String,
+    val id: String,
+    val deleted: Boolean
+)

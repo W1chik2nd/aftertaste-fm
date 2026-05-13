@@ -15,7 +15,9 @@ import type {
   SettingsResponse,
   TasteProfileResponse,
   TasteTagsResponse,
-  TasteTracksResponse
+  TasteTracksResponse,
+  DeleteImportResponse,
+  DeleteTrackEvidenceResponse
 } from "./types";
 import type { ImportEvidenceJsonResponse } from "./externalImportTypes";
 
@@ -97,6 +99,8 @@ export const radioApi = {
       body: JSON.stringify({ content, sourceName })
     }),
   imports: () => request<ImportRecord[]>("/api/imports"),
+  deleteImport: (slug: string) =>
+    request<DeleteImportResponse>(`/api/imports/${encodeURIComponent(slug)}`, { method: "DELETE" }),
   importDetail: (slug: string) => request<ImportDetail>(`/api/imports/${encodeURIComponent(slug)}`),
   analyzeImport: (slug: string, body: AnalyzeImportRequest = {}) =>
     request<AnalyzeJobStartResponse>(`/api/imports/${encodeURIComponent(slug)}/analyze`, {
@@ -116,6 +120,11 @@ export const radioApi = {
   },
   tasteTrack: (provider: string, id: string) =>
     request<EvidenceTrackAnalysis>(`/api/taste/tracks/${encodeURIComponent(provider)}/${encodeURIComponent(id)}`),
+  deleteTasteTrack: (provider: string, id: string) =>
+    request<DeleteTrackEvidenceResponse>(
+      `/api/taste/tracks/${encodeURIComponent(provider)}/${encodeURIComponent(id)}`,
+      { method: "DELETE" }
+    ),
   tasteTags: () => request<TasteTagsResponse>("/api/taste/tags"),
   tasteProfile: () => request<TasteProfileResponse>("/api/taste/profile"),
   play: () => request<PlaybackState>("/api/play", { method: "POST" }),

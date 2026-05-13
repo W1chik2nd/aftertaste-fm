@@ -122,6 +122,18 @@
   gap: 8px;
 }
 
+.icon-danger-button {
+  width: 38px;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d2d2d7;
+  border-radius: 8px;
+  background: transparent;
+  color: #b42318;
+}
+
 .meter {
   height: 7px;
   overflow: hidden;

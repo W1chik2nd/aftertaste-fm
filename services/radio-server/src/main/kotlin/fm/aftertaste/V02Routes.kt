@@ -41,6 +41,12 @@ fun Route.registerImportRoutes(
         if (detail == null) call.respondNotFound("Import not found: $slug") else call.respond(detail)
     }
 
+    delete("/imports/{slug}") {
+        val slug = call.parameters["slug"].orEmpty()
+        val response = imports.delete(slug, evidence)
+        if (response.deleted) call.respond(response) else call.respondNotFound("Import not found: $slug")
+    }
+
     post("/imports/{slug}/analyze") {
         val slug = call.parameters["slug"].orEmpty()
         val request = call.receive<AnalyzeImportRequest>()
@@ -97,6 +103,13 @@ fun Route.registerTasteRoutes(
         val id = call.parameters["id"].orEmpty()
         val track = evidence.get(provider, id)
         if (track == null) call.respondNotFound("Track evidence not found: $provider/$id") else call.respond(track)
+    }
+
+    delete("/taste/tracks/{provider}/{id}") {
+        val provider = call.parameters["provider"].orEmpty()
+        val id = call.parameters["id"].orEmpty()
+        val deleted = evidence.delete(provider, id)
+        if (deleted) call.respond(DeleteTrackEvidenceResponse(provider, id, true)) else call.respondNotFound("Track evidence not found: $provider/$id")
     }
 
     get("/taste/tags") {

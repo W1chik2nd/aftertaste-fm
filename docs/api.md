@@ -231,6 +231,18 @@ Returns one import plus normalized track summaries.
 }
 ```
 
+`DELETE /api/imports/{slug}`
+
+Deletes the import's raw, draft, and lyrics files. Evidence for tracks in that import is deleted only when no other import still references the same provider/id.
+
+```json
+{
+  "slug": "netease-123456-night-shelf",
+  "deleted": true,
+  "deletedTrackEvidenceCount": 42
+}
+```
+
 ## Analysis Jobs
 
 `POST /api/imports/{slug}/analyze`
@@ -313,6 +325,18 @@ Requests cancellation.
   "errors": [],
   "startedAt": "2026-05-13T12:00:00Z",
   "finishedAt": "2026-05-13T12:01:00Z"
+}
+```
+
+`DELETE /api/taste/tracks/{provider}/{id}`
+
+Deletes one analyzed track evidence file from the library and rebuilds `tracks.evidence.json`.
+
+```json
+{
+  "provider": "netease",
+  "id": "111",
+  "deleted": true
 }
 ```
 

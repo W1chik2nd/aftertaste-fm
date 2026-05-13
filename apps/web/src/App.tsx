@@ -3,6 +3,7 @@ import { Radio } from "lucide-react";
 import { radioApi } from "./api";
 import type { AgentTrace, HealthResponse, PlanResponse, PlaybackState, SettingsResponse } from "./types";
 import { type ChatMessage } from "./components/AgentPanel";
+import { AppAudio } from "./components/AppAudio";
 import { LyricsPanel } from "./components/LyricsPanel";
 import { AppNav, type ViewId } from "./components/AppNav";
 import { ImportView } from "./components/views/ImportView";
@@ -207,26 +208,13 @@ function App() {
 
   return (
     <main className="shell">
-      <audio
-        ref={audioRef}
-        onLoadedMetadata={(event) => setDurationSeconds(event.currentTarget.duration || 0)}
-        onTimeUpdate={(event) => setProgressSeconds(event.currentTarget.currentTime || 0)}
-        onEnded={() => {
-          setProgressSeconds(0);
-          void advanceToNext();
-        }}
-      />
-      <audio
-        ref={voiceRef}
-        onPlay={() => {
-          if (audioRef.current) audioRef.current.volume = 0.16;
-        }}
-        onEnded={() => {
-          if (audioRef.current) audioRef.current.volume = 1;
-        }}
-        onPause={() => {
-          if (audioRef.current && !playback.isPlaying) audioRef.current.volume = 1;
-        }}
+      <AppAudio
+        audioRef={audioRef}
+        voiceRef={voiceRef}
+        playback={playback}
+        setProgressSeconds={setProgressSeconds}
+        setDurationSeconds={setDurationSeconds}
+        advanceToNext={advanceToNext}
       />
 
       <header className="app-header" aria-label="Aftertaste FM">
@@ -274,7 +262,13 @@ function App() {
             ) : null}
           </PlayerView>
         ) : null}
-        {activeView === "library" ? <LibraryView onError={setError} refreshSignal={libraryRevision} /> : null}
+        {activeView === "library" ? (
+          <LibraryView
+            onError={setError}
+            refreshSignal={libraryRevision}
+            onLibraryChanged={() => setLibraryRevision((rev) => rev + 1)}
+          />
+        ) : null}
         {activeView === "import" ? (
           <ImportView onError={setError} onLibraryChanged={() => setLibraryRevision((rev) => rev + 1)} />
         ) : null}

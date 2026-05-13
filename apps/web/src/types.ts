@@ -216,4 +216,8 @@ export type TasteRules = {
   moodAliases: Record<string, string[]>;
   artistAliases: Record<string, string[]>;
 };
-export type { ImportEvidenceJsonResponse } from "./externalImportTypes";
+export type {
+  DeleteImportResponse,
+  DeleteTrackEvidenceResponse,
+  ImportEvidenceJsonResponse
+} from "./externalImportTypes";

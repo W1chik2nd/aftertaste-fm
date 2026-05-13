@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertCircle, Download, Loader2, Square, WandSparkles } from "lucide-react";
+import { AlertCircle, Download, Loader2, Square, Trash2, WandSparkles } from "lucide-react";
 import { radioApi } from "../../api";
 import type { AnalysisJobView, ImportPlaylistResponse, ImportRecord } from "../../types";
 import { ExternalJsonImport } from "./ExternalJsonImport";
@@ -118,6 +118,20 @@ export function ImportView({ onError, onLibraryChanged }: Props) {
     }
   }
 
+  async function deleteImport(row: ImportRecord) {
+    setBusySlug(row.slug);
+    try {
+      await radioApi.deleteImport(row.slug);
+      await loadImports();
+      onLibraryChanged?.();
+      onError(null);
+    } catch (event) {
+      onError(event instanceof Error ? event.message : "Import could not be deleted.");
+    } finally {
+      setBusySlug(null);
+    }
+  }
+
   return (
     <section className="view-surface import-view" aria-label="Import playlists">
       <div className="view-heading">
@@ -169,6 +183,7 @@ export function ImportView({ onError, onLibraryChanged }: Props) {
             force={forceReanalyze}
             onAnalyze={() => void analyze(row)}
             onCancel={() => void cancel(row)}
+            onDelete={() => void deleteImport(row)}
           />
         ))}
       </div>
@@ -182,7 +197,8 @@ function ImportRow({
   busy,
   force,
   onAnalyze,
-  onCancel
+  onCancel,
+  onDelete
 }: {
   row: ImportRecord;
   job?: AnalysisJobView;
@@ -190,6 +206,7 @@ function ImportRow({
   force: boolean;
   onAnalyze: () => void;
   onCancel: () => void;
+  onDelete: () => void;
 }) {
   const processed = job?.processed ?? row.analyzedTrackCount;
   const total = job?.total || row.trackCount;
@@ -207,6 +224,9 @@ function ImportRow({
           </p>
         </div>
         <div className="import-actions">
+          <button type="button" className="icon-danger-button" onClick={onDelete} disabled={busy || running} aria-label={`Delete ${row.name}`}>
+            <Trash2 size={16} />
+          </button>
           {running ? (
             <button type="button" className="secondary-button" onClick={onCancel} disabled={busy}>
               <Square size={15} />

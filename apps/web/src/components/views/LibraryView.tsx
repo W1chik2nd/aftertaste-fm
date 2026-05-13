@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { AlertCircle, ChevronLeft, ChevronRight, Loader2, Trash2 } from "lucide-react";
 import { radioApi } from "../../api";
 import type { EvidenceTag, EvidenceTrackAnalysis, TaggedTrackView } from "../../types";
 
@@ -9,9 +9,10 @@ const SCORE_PERCENT = 100;
 type Props = {
   onError: (message: string | null) => void;
   refreshSignal?: number;
+  onLibraryChanged?: () => void;
 };
 
-export function LibraryView({ onError, refreshSignal = 0 }: Props) {
+export function LibraryView({ onError, refreshSignal = 0, onLibraryChanged }: Props) {
   const [tracks, setTracks] = useState<TaggedTrackView[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -73,6 +74,22 @@ export function LibraryView({ onError, refreshSignal = 0 }: Props) {
       onError(null);
     } catch (event) {
       onError(event instanceof Error ? event.message : "Could not load track evidence.");
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  async function deleteTrack(track: EvidenceTrackAnalysis) {
+    setDetailLoading(true);
+    try {
+      await radioApi.deleteTasteTrack(track.provider, track.id);
+      setSelected(null);
+      await loadTracks();
+      await loadTagOptions();
+      onLibraryChanged?.();
+      onError(null);
+    } catch (event) {
+      onError(event instanceof Error ? event.message : "Track evidence could not be deleted.");
     } finally {
       setDetailLoading(false);
     }
@@ -172,13 +189,17 @@ export function LibraryView({ onError, refreshSignal = 0 }: Props) {
           </div>
         </div>
 
-        <TrackDetail track={selected} loading={detailLoading} />
+        <TrackDetail track={selected} loading={detailLoading} onDelete={() => selected ? void deleteTrack(selected) : undefined} />
       </div>
     </section>
   );
 }
 
-function TrackDetail({ track, loading }: { track: EvidenceTrackAnalysis | null; loading: boolean }) {
+function TrackDetail({ track, loading, onDelete }: {
+  track: EvidenceTrackAnalysis | null;
+  loading: boolean;
+  onDelete: () => void;
+}) {
   if (loading) return <aside className="detail-panel"><Loader2 className="spin" size={18} /> Loading evidence...</aside>;
   if (!track) return <aside className="detail-panel muted-line">Select a track to inspect its evidence.</aside>;
   return (
@@ -189,7 +210,12 @@ function TrackDetail({ track, loading }: { track: EvidenceTrackAnalysis | null; 
           <h2>{track.title}</h2>
           <p>{track.artist}</p>
         </div>
-        {track.needsReview ? <AlertCircle size={18} /> : null}
+        <div className="detail-actions">
+          {track.needsReview ? <AlertCircle size={18} /> : null}
+          <button type="button" className="icon-danger-button" onClick={onDelete} aria-label={`Delete ${track.title}`}>
+            <Trash2 size={16} />
+          </button>
+        </div>
       </div>
       <section>
         <h3>Signals</h3>

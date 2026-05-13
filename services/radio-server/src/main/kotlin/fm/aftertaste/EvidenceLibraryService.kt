@@ -55,6 +55,16 @@ class EvidenceLibraryService(
         }
     }
 
+    suspend fun delete(provider: String, id: String): Boolean {
+        val path = trackPath(provider, id)
+        val deleted = withContext(Dispatchers.IO) { Files.deleteIfExists(path) }
+        if (deleted) {
+            cacheMutex.withLock { cache?.remove(cacheKey(provider, id)) }
+            rebuildAggregate()
+        }
+        return deleted
+    }
+
     suspend fun get(provider: String, id: String): EvidenceTrackAnalysis? =
         ensureCache()[cacheKey(provider, id)]
 

@@ -137,6 +137,21 @@ class PlaylistImportService(
         readLyrics(lyricsPath.resolve("$slug$LYRICS_IMPORT_SUFFIX"))
     }
 
+    suspend fun delete(slug: String, evidence: EvidenceLibraryService): DeleteImportResponse {
+        val rawPath = importsPath.resolve("$slug$RAW_IMPORT_SUFFIX")
+        val draftPath = draftsPath.resolve("$slug$DRAFT_IMPORT_SUFFIX")
+        val lyricPath = lyricsPath.resolve("$slug$LYRICS_IMPORT_SUFFIX")
+        val raw = withContext(Dispatchers.IO) { readRaw(rawPath) }
+        val deletedFiles = withContext(Dispatchers.IO) {
+            listOf(rawPath, draftPath, lyricPath).count { Files.deleteIfExists(it) }
+        }
+        identitiesMutex.withLock { identitiesCache = null }
+        val deletedEvidence = raw?.playlist?.tracks.orEmpty()
+            .filterNot { isReferencedByOtherImport(it, slug) }
+            .count { evidence.delete(it.provider, it.id) }
+        return DeleteImportResponse(slug, deletedFiles > 0, deletedEvidence)
+    }
+
     private fun rawImportFiles(): List<Path> {
         if (!Files.exists(importsPath)) return emptyList()
         return Files.list(importsPath).use { stream ->
@@ -160,6 +175,12 @@ class PlaylistImportService(
                 .flatMap { imported -> imported.playlist.tracks.map { it.identity() } }
                 .toMutableSet()
         }
+
+    private fun isReferencedByOtherImport(track: Track, deletedSlug: String): Boolean =
+        rawImportFiles()
+            .filterNot { slugFromRawPath(it) == deletedSlug }
+            .mapNotNull { readRaw(it) }
+            .any { imported -> imported.playlist.tracks.any { it.provider == track.provider && it.id == track.id } }
 
     private fun readRaw(path: Path): ImportedPlaylistFile? =
         readFile(path) { content -> json.decodeFromString<ImportedPlaylistFile>(content) }

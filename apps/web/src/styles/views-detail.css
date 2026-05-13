@@ -13,6 +13,12 @@
   gap: 12px;
 }
 
+.detail-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .detail-title span {
   color: #6e6e73;
   font-size: 0.78rem;
