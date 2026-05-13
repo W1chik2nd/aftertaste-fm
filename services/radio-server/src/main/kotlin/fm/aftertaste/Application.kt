@@ -63,6 +63,7 @@ fun Application.module() {
     val tasteRepository = TasteProfileRepository()
     val evidenceLibrary = EvidenceLibraryService()
     val playlistImportService = PlaylistImportService()
+    val userRecordImportService = NeteaseUserRecordImportService(neteaseRealProvider, playlistImportService)
     val engine = RadioEngine(
         provider,
         neteaseRealProvider,
@@ -180,7 +181,7 @@ fun Application.module() {
                 call.respond(engine.lyrics(id))
             }
 
-            registerImportRoutes(engine, playlistImportService, evidenceLibrary, analysisJobs)
+            registerImportRoutes(engine, playlistImportService, evidenceLibrary, analysisJobs, userRecordImportService)
             registerTasteRoutes(tasteRepository, evidenceLibrary)
         }
 

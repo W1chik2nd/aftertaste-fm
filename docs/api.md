@@ -166,6 +166,22 @@ Response example:
 }
 ```
 
+`POST /api/import/netease-user-record`
+
+Body:
+
+```json
+{
+  "uid": "123456"
+}
+```
+
+Imports the user's Netease all-time listening ranking from adapter `/user/record?uid=<uid>&type=0`.
+The import is stored like a normal playlist, ignores duplicate songs by normalized `title + artist`,
+and preserves each track's `playCount` as user-behavior weight in the raw import and tagged draft.
+
+Response shape matches `POST /api/import/playlist`.
+
 `POST /api/import/evidence-json`
 
 Body:
@@ -226,10 +242,27 @@ Returns one import plus normalized track summaries.
   "analyzedTrackCount": 0,
   "pendingAnalysisCount": 42,
   "tracks": [
-    { "provider": "netease", "id": "111", "title": "Track", "artist": "Artist" }
+    {
+      "provider": "netease",
+      "id": "111",
+      "title": "Track",
+      "artist": "Artist",
+      "album": null,
+      "durationMs": 210000,
+      "coverUrl": null,
+      "playCount": 42
+    }
   ]
 }
 ```
+
+`GET /api/imports/{slug}/analysis-draft`
+
+Returns the generated `TaggedPlaylistDraft` JSON for offline/local analysis.
+
+`GET /api/imports/{slug}/lyrics`
+
+Returns the generated lyrics JSON keyed by track id for offline/local analysis.
 
 `DELETE /api/imports/{slug}`
 

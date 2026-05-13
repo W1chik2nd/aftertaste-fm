@@ -70,7 +70,7 @@ class TrackAnalysisService(
         json.encodeToString(
             AnalysisPrompt(
                 playlistName = playlistName,
-                track = AnalysisTrackInput(track.id, track.title, track.artist, track.album, track.durationMs, track.provider, track.language, lyric)
+                track = AnalysisTrackInput(track.id, track.title, track.artist, track.album, track.durationMs, track.provider, track.language, track.playCount, lyric)
             )
         )
 
@@ -82,9 +82,10 @@ class TrackAnalysisService(
         language must be { "value": string, "confidence": number, "evidence": source[] }.
         Each tag must be { "tag": lowercase-kebab-case string, "confidence": number, "evidence": source[] }.
         Each score must be { "value": 0..1 number, "confidence": number, "evidence": source[] }.
-        scores must include energy, valence, night, coding, skipRisk, danceability, acousticness, speechiness, instrumentalness, liveness, emotionalIntensity, lyricalFocus, mainstreamAppeal.
+        scores must include energy, valence, night, coding, skipRisk, danceability, acousticness, speechiness, instrumentalness, liveness, emotionalIntensity, lyricalFocus, familiarity, mainstreamAppeal.
         notes must be { "summary": string, "evidence": [{ "tag": string, "evidenceString": string }] }.
-        Evidence source values must be one of metadata, lyrics, playlist_context, model_inference.
+        Use playCount as user behavior evidence for familiarity and durable preference strength when it is present.
+        Evidence source values must be one of metadata, lyrics, playlist_context, user_behavior, model_inference.
         Do not quote lyrics. Evidence strings should paraphrase, not reproduce lyric lines.
         Set needsReview true if lyrics are missing, language is uncertain, score confidence is low, or evidence is ambiguous.
         """.trimIndent()
@@ -123,6 +124,7 @@ private data class AnalysisTrackInput(
     val durationMs: Long?,
     val provider: String,
     val metadataLanguage: String,
+    val playCount: Int?,
     val lyrics: String?
 )
 
@@ -150,13 +152,14 @@ private fun TaggedTrack.toEvidence(
         album = album,
         durationMs = durationMs,
         coverUrl = coverUrl,
+        playCount = playCount,
         language = analysis.language.cleanStringValue(),
         moodTags = analysis.moodTags.cleanTags(),
         contextTags = analysis.contextTags.cleanTags(),
         soundTags = analysis.soundTags.cleanTags(),
         useTags = analysis.useTags.cleanTags(),
         scores = analysis.scores.cleanScores(),
-        evidence = TrackEvidenceState(metadata = true, lyrics = lyric != null, model = modelEvidence),
+        evidence = TrackEvidenceState(metadata = true, lyrics = lyric != null, userBehavior = playCount != null, model = modelEvidence),
         notes = analysis.notes?.summary?.take(ANALYSIS_NOTE_MAX_CHARS),
         analysisNotes = analysis.notes?.cleanNotes(),
         needsReview = analysis.needsReview || !modelEvidence,
@@ -272,7 +275,7 @@ private fun List<EvidenceTag>.cleanTags(): List<EvidenceTag> =
         .take(ANALYSIS_TAG_LIMIT)
 
 private fun List<String>.cleanEvidence(): List<String> {
-    val allowed = setOf("metadata", "lyrics", "playlist_context", "model_inference")
+    val allowed = setOf("metadata", "lyrics", "playlist_context", "user_behavior", "model_inference")
     return filter { it in allowed }.distinct()
 }
 

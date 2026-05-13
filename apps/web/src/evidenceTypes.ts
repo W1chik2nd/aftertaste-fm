@@ -63,6 +63,7 @@ export type EvidenceTrackAnalysis = {
   album?: string | null;
   durationMs?: number | null;
   coverUrl?: string | null;
+  playCount?: number | null;
   language: EvidenceValueString;
   moodTags: EvidenceTag[];
   contextTags: EvidenceTag[];

@@ -19,6 +19,7 @@ data class Track(
     val album: String? = null,
     val durationMs: Long? = null,
     val coverUrl: String? = null,
+    val playCount: Int? = null,
     val streamUrl: String? = null,
     val unavailableReason: String? = null
 )

@@ -41,6 +41,10 @@ export class NeteaseClient {
     return this.call("/playlist/detail", { id });
   }
 
+  async userRecord(uid: string, type: string) {
+    return this.call("/user/record", { uid, type });
+  }
+
   async recommendSongs() {
     return this.call("/recommend/songs", {});
   }

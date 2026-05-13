@@ -38,8 +38,12 @@ data class TrackSummary(
     val artist: String,
     val album: String? = null,
     val durationMs: Long? = null,
-    val coverUrl: String? = null
+    val coverUrl: String? = null,
+    val playCount: Int? = null
 )
+
+@Serializable
+data class ImportNeteaseUserRecordRequest(val uid: String)
 
 @Serializable
 data class ImportPlaylistResponse(

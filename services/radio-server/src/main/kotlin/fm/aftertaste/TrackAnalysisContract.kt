@@ -19,6 +19,7 @@ private val scoreNames = listOf(
     "liveness",
     "emotionalIntensity",
     "lyricalFocus",
+    "familiarity",
     "mainstreamAppeal"
 )
 
@@ -117,6 +118,7 @@ private fun sourceArraySchema(): JsonObject = buildJsonObject {
             add("metadata")
             add("lyrics")
             add("playlist_context")
+            add("user_behavior")
             add("model_inference")
         })
     })

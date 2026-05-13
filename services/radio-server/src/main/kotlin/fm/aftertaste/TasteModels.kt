@@ -14,6 +14,7 @@ data class TaggedTrack(
     val album: String? = null,
     val durationMs: Long? = null,
     val coverUrl: String? = null,
+    val playCount: Int? = null,
     val tags: List<String> = emptyList(),
     val language: String = "unknown",
     val energy: Double = 0.5,
@@ -30,7 +31,8 @@ data class TaggedTrack(
         artist = artist,
         album = album,
         durationMs = durationMs,
-        coverUrl = coverUrl
+        coverUrl = coverUrl,
+        playCount = playCount
     )
 }
 
@@ -107,6 +109,7 @@ data class EvidenceTrackAnalysis(
     val album: String? = null,
     val durationMs: Long? = null,
     val coverUrl: String? = null,
+    val playCount: Int? = null,
     val language: EvidenceValueString = EvidenceValueString("unknown", 0.0),
     val moodTags: List<EvidenceTag> = emptyList(),
     val contextTags: List<EvidenceTag> = emptyList(),
@@ -133,6 +136,7 @@ data class EvidenceTrackAnalysis(
             album = album,
             durationMs = durationMs,
             coverUrl = coverUrl,
+            playCount = playCount,
             tags = allTags,
             language = language.value,
             energy = scores.energy.value,

@@ -175,7 +175,7 @@ class AnalysisJobService(
         cancellations[jobId]?.get() == true || jobs[jobId]?.status == JOB_CANCELLED
 
     private fun TaggedTrack.toSummary(): TrackSummary =
-        TrackSummary(provider, id, title, artist, album, durationMs, coverUrl)
+        TrackSummary(provider, id, title, artist, album, durationMs, coverUrl, playCount)
 
     private fun nowIso(): String = OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 }

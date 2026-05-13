@@ -132,6 +132,7 @@ export type TrackSummary = {
   album?: string | null;
   durationMs?: number | null;
   coverUrl?: string | null;
+  playCount?: number | null;
 };
 
 export type ImportPlaylistResponse = {
@@ -147,6 +148,39 @@ export type ImportPlaylistResponse = {
   taggedDraftPath: string;
   lyricsPath: string;
   nextStep: string;
+};
+
+export type ImportedLyricsFile = {
+  importedAt: string;
+  source: string;
+  playlistId: string;
+  playlistName: string;
+  lyricsByTrackId: Record<string, string | null>;
+};
+
+export type TaggedPlaylistDraft = {
+  importedAt: string;
+  source: string;
+  playlistId: string;
+  playlistName: string;
+  tracks: Array<{
+    provider: string;
+    id: string;
+    title: string;
+    artist: string;
+    album?: string | null;
+    durationMs?: number | null;
+    coverUrl?: string | null;
+    playCount?: number | null;
+    tags: string[];
+    language: string;
+    energy: number;
+    valence: number;
+    nightScore: number;
+    codingScore: number;
+    skipRisk: number;
+    notes?: string | null;
+  }>;
 };
 
 export type ImportRecord = {

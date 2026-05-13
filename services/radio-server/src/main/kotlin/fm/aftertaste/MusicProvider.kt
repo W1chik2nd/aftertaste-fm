@@ -4,10 +4,14 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.http.encodeURLParameter
+import io.ktor.http.isSuccess
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
+
+private const val ADAPTER_ERROR_SNIPPET_CHARS = 240
 
 interface MusicProvider {
     val name: String
@@ -24,6 +28,8 @@ interface MusicProvider {
 }
 
 data class ProviderHealth(val status: String, val mode: String? = null)
+
+class NeteaseProviderException(message: String) : RuntimeException(message)
 
 class MockMusicProvider : MusicProvider {
     override val name: String = "mock"
@@ -128,6 +134,23 @@ class NeteaseMusicProvider(
                 fallback?.getPlaylist(playlistId) ?: throw error
             }
 
+    suspend fun getUserRecord(uid: String): Playlist =
+        runCatching {
+            val response = client.get("$baseUrl/user/record?uid=${uid.encodeURLParameter()}&type=0")
+            val text = response.body<String>()
+            if (!response.status.isSuccess()) {
+                throw NeteaseProviderException("Netease adapter returned ${response.status}: ${text.snippet()}")
+            }
+            try {
+                parser.decodeFromString<Playlist>(text)
+            } catch (cause: SerializationException) {
+                throw NeteaseProviderException("Netease adapter returned invalid user record JSON: ${text.snippet()}")
+            }
+        }.getOrElse { error ->
+            logger.warn("netease getUserRecord failed: {}", error.message)
+            throw error
+        }
+
     override suspend fun getRecommendations(context: RecommendationContext): List<Track> =
         runCatching { client.get("$baseUrl/recommend/songs").body<List<Track>>() }
             .getOrElse { fallback?.getRecommendations(context) ?: throw it }
@@ -139,3 +162,6 @@ class NeteaseMusicProvider(
             ProviderHealth(status = body["status"] ?: "ok", mode = body["mode"])
         }.getOrElse { ProviderHealth(status = "offline") }
 }
+
+private fun String.snippet(): String =
+    take(ADAPTER_ERROR_SNIPPET_CHARS).trim()

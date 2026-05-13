@@ -7,6 +7,7 @@ import type {
   EvidenceTrackAnalysis,
   HealthResponse,
   ImportDetail,
+  ImportedLyricsFile,
   ImportPlaylistResponse,
   ImportRecord,
   LyricsResponse,
@@ -16,6 +17,7 @@ import type {
   TasteProfileResponse,
   TasteTagsResponse,
   TasteTracksResponse,
+  TaggedPlaylistDraft,
   DeleteImportResponse,
   DeleteTrackEvidenceResponse
 } from "./types";
@@ -93,6 +95,11 @@ export const radioApi = {
       method: "POST",
       body: JSON.stringify({ source })
     }),
+  importNeteaseUserRecord: (uid: string) =>
+    request<ImportPlaylistResponse>("/api/import/netease-user-record", {
+      method: "POST",
+      body: JSON.stringify({ uid })
+    }),
   importEvidenceJson: (content: string, sourceName?: string) =>
     request<ImportEvidenceJsonResponse>("/api/import/evidence-json", {
       method: "POST",
@@ -102,6 +109,10 @@ export const radioApi = {
   deleteImport: (slug: string) =>
     request<DeleteImportResponse>(`/api/imports/${encodeURIComponent(slug)}`, { method: "DELETE" }),
   importDetail: (slug: string) => request<ImportDetail>(`/api/imports/${encodeURIComponent(slug)}`),
+  importAnalysisDraft: (slug: string) =>
+    request<TaggedPlaylistDraft>(`/api/imports/${encodeURIComponent(slug)}/analysis-draft`),
+  importLyricsFile: (slug: string) =>
+    request<ImportedLyricsFile>(`/api/imports/${encodeURIComponent(slug)}/lyrics`),
   analyzeImport: (slug: string, body: AnalyzeImportRequest = {}) =>
     request<AnalyzeJobStartResponse>(`/api/imports/${encodeURIComponent(slug)}/analyze`, {
       method: "POST",

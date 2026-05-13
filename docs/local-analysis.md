@@ -9,6 +9,9 @@ After importing a playlist, read these private files:
 - `data/taste/drafts/<slug>.tagged-draft.json`
 - `data/taste/lyrics/<slug>.lyrics.json`
 
+Listening-rank imports include `playCount` on each draft track. Treat it as user-behavior weight:
+high playCount means durable familiarity, not necessarily higher energy or better fit for every moment.
+
 Do not edit generated taste files by hand. Produce a separate JSON file, then import it from the web UI with **Import analyzed JSON**.
 
 ## Output
@@ -26,6 +29,7 @@ Write one JSON object with a `tracks` array. Each track must include the origina
       "album": null,
       "durationMs": 210000,
       "coverUrl": null,
+      "playCount": 42,
       "language": { "value": "zh", "confidence": 0.9, "evidence": ["lyrics"] },
       "moodTags": [{ "tag": "reflective", "confidence": 0.8, "evidence": ["lyrics"] }],
       "contextTags": [],
@@ -44,13 +48,14 @@ Write one JSON object with a `tracks` array. Each track must include the origina
         "liveness": { "value": 0.08, "confidence": 0.5, "evidence": ["model_inference"] },
         "emotionalIntensity": { "value": 0.74, "confidence": 0.66, "evidence": ["lyrics"] },
         "lyricalFocus": { "value": 0.95, "confidence": 0.66, "evidence": ["lyrics"] },
+        "familiarity": { "value": 0.8, "confidence": 0.72, "evidence": ["user_behavior"] },
         "mainstreamAppeal": { "value": 0.62, "confidence": 0.55, "evidence": ["model_inference"] }
       },
       "evidence": {
         "metadata": true,
         "lyrics": true,
         "audioFeatures": false,
-        "userBehavior": false,
+        "userBehavior": true,
         "manual": false,
         "model": true
       },
@@ -67,13 +72,12 @@ Write one JSON object with a `tracks` array. Each track must include the origina
 }
 ```
 
-Allowed evidence source values are `metadata`, `lyrics`, `playlist_context`, and `model_inference`.
+Allowed evidence source values are `metadata`, `lyrics`, `playlist_context`, `user_behavior`, and `model_inference`.
 
 ## Agent Prompt
 
 ```text
 Analyze the imported playlist for Aftertaste FM.
 
-Read the tagged draft JSON and lyrics JSON I provide. Return only one JSON object with a top-level "tracks" array. Use the exact EvidenceTrackAnalysis shape from docs/local-analysis.md. Do not quote lyrics; paraphrase evidence. Use lowercase kebab-case tags. Prefer unknown or low confidence over pretending. Set needsReview=true when lyrics are missing, language is uncertain, or the analysis is weak.
+Read the tagged draft JSON and lyrics JSON I provide. Return only one JSON object with a top-level "tracks" array. Use the exact EvidenceTrackAnalysis shape from docs/local-analysis.md. Keep provider/id/title/artist/album/durationMs/coverUrl/playCount exactly from the draft. Use playCount only as user_behavior evidence for familiarity and durable preference strength. Do not quote lyrics; paraphrase evidence. Use lowercase kebab-case tags. Prefer unknown or low confidence over pretending. Set needsReview=true when lyrics are missing, language is uncertain, or the analysis is weak.
 ```
-

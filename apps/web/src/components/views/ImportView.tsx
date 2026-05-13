@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertCircle, Download, Loader2, Square, Trash2, WandSparkles } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { radioApi } from "../../api";
 import type { AnalysisJobView, ImportPlaylistResponse, ImportRecord } from "../../types";
 import { ExternalJsonImport } from "./ExternalJsonImport";
+import { ImportRow } from "./ImportRow";
+import { NeteaseUserRecordImport } from "./NeteaseUserRecordImport";
 
 const JOB_POLL_INTERVAL_MS = 1600;
 
@@ -17,6 +19,7 @@ export function ImportView({ onError, onLibraryChanged }: Props) {
   const [jobsBySlug, setJobsBySlug] = useState<Record<string, AnalysisJobView>>({});
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [recordImporting, setRecordImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportPlaylistResponse | null>(null);
   const [busySlug, setBusySlug] = useState<string | null>(null);
   const [forceReanalyze, setForceReanalyze] = useState(false);
@@ -89,6 +92,20 @@ export function ImportView({ onError, onLibraryChanged }: Props) {
     }
   }
 
+  async function importUserRecord(uid: string) {
+    setRecordImporting(true);
+    setImportResult(null);
+    try {
+      const response = await radioApi.importNeteaseUserRecord(uid);
+      setImportResult(response);
+      await loadImports();
+    } catch (event) {
+      onError(event instanceof Error ? event.message : "Listening ranking import failed.");
+    } finally {
+      setRecordImporting(false);
+    }
+  }
+
   async function analyze(row: ImportRecord) {
     setBusySlug(row.slug);
     try {
@@ -132,6 +149,24 @@ export function ImportView({ onError, onLibraryChanged }: Props) {
     }
   }
 
+  async function downloadDraft(row: ImportRecord) {
+    try {
+      downloadJson(`${row.slug}.tagged-draft.json`, await radioApi.importAnalysisDraft(row.slug));
+      onError(null);
+    } catch (event) {
+      onError(event instanceof Error ? event.message : "Could not download analysis draft.");
+    }
+  }
+
+  async function downloadLyrics(row: ImportRecord) {
+    try {
+      downloadJson(`${row.slug}.lyrics.json`, await radioApi.importLyricsFile(row.slug));
+      onError(null);
+    } catch (event) {
+      onError(event instanceof Error ? event.message : "Could not download lyrics JSON.");
+    }
+  }
+
   return (
     <section className="view-surface import-view" aria-label="Import playlists">
       <div className="view-heading">
@@ -155,6 +190,7 @@ export function ImportView({ onError, onLibraryChanged }: Props) {
           Import
         </button>
       </form>
+      <NeteaseUserRecordImport importing={recordImporting} onImport={importUserRecord} />
       {importResult ? (
         <p className="muted-line">
           Imported {importResult.trackCount} tracks · ignored {importResult.ignoredDuplicateCount} duplicates
@@ -184,6 +220,8 @@ export function ImportView({ onError, onLibraryChanged }: Props) {
             onAnalyze={() => void analyze(row)}
             onCancel={() => void cancel(row)}
             onDelete={() => void deleteImport(row)}
+            onDownloadDraft={() => void downloadDraft(row)}
+            onDownloadLyrics={() => void downloadLyrics(row)}
           />
         ))}
       </div>
@@ -191,75 +229,12 @@ export function ImportView({ onError, onLibraryChanged }: Props) {
   );
 }
 
-function ImportRow({
-  row,
-  job,
-  busy,
-  force,
-  onAnalyze,
-  onCancel,
-  onDelete
-}: {
-  row: ImportRecord;
-  job?: AnalysisJobView;
-  busy: boolean;
-  force: boolean;
-  onAnalyze: () => void;
-  onCancel: () => void;
-  onDelete: () => void;
-}) {
-  const processed = job?.processed ?? row.analyzedTrackCount;
-  const total = job?.total || row.trackCount;
-  const progress = total ? Math.round((processed / total) * 100) : 100;
-  const running = job?.status === "running";
-  const callsToRun = force ? row.trackCount : row.pendingAnalysisCount;
-  const analyzeDisabled = busy || (!force && row.pendingAnalysisCount === 0);
-  return (
-    <article className="import-row">
-      <div className="import-main">
-        <div>
-          <h2>{row.name}</h2>
-          <p>
-            {row.trackCount} tracks · {row.status} · {row.pendingAnalysisCount} calls pending
-          </p>
-        </div>
-        <div className="import-actions">
-          <button type="button" className="icon-danger-button" onClick={onDelete} disabled={busy || running} aria-label={`Delete ${row.name}`}>
-            <Trash2 size={16} />
-          </button>
-          {running ? (
-            <button type="button" className="secondary-button" onClick={onCancel} disabled={busy}>
-              <Square size={15} />
-              Cancel
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="primary-button"
-              onClick={onAnalyze}
-              disabled={analyzeDisabled}
-            >
-              {busy ? <Loader2 className="spin" size={15} /> : <WandSparkles size={15} />}
-              {force ? `Re-analyze ${callsToRun} calls` : `Analyze ${callsToRun} calls`}
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="meter" aria-label="Analysis progress">
-        <span style={{ width: `${progress}%` }} />
-      </div>
-      {job?.current ? <p className="muted-line">Now analyzing {job.current.title}</p> : null}
-      {job?.errors.length ? (
-        <details className="job-errors">
-          <summary>
-            <AlertCircle size={15} />
-            {job.errors.length} tracks need review
-          </summary>
-          {job.errors.map((error) => (
-            <p key={`${error.trackId}-${error.message}`}>{error.trackId}: {error.message}</p>
-          ))}
-        </details>
-      ) : null}
-    </article>
-  );
+function downloadJson(filename: string, value: unknown) {
+  const blob = new Blob([JSON.stringify(value, null, 2) + "\n"], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }

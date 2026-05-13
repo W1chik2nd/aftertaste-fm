@@ -53,12 +53,15 @@ class PlaylistImportService(
         val uniqueTracks = identitiesMutex.withLock {
             playlist.tracks.filter { track -> identities.add(track.identity()) }
         }
+        val ignoredDuplicateCount = playlist.tracks.size - uniqueTracks.size
+        if (uniqueTracks.isEmpty() && existingRaw == null) {
+            return duplicateOnlyResponse(slug, playlist, importedAt, ignoredDuplicateCount, rawPath, draftPath, lyricPath)
+        }
         val combinedTracks = (existingRaw?.playlist?.tracks.orEmpty() + uniqueTracks)
             .distinctBy { it.identity() }
         val uniquePlaylist = playlist.copy(tracks = combinedTracks)
         val mergedLyricsByTrackId = existingLyrics?.lyricsByTrackId.orEmpty() +
             uniqueTracks.associate { track -> track.id to lyricsByTrackId[track.id] }
-        val ignoredDuplicateCount = playlist.tracks.size - uniqueTracks.size
 
         val raw = ImportedPlaylistFile(importedAt = importedAt, source = source, playlist = uniquePlaylist)
         val draft = TaggedPlaylistDraft(
@@ -76,25 +79,35 @@ class PlaylistImportService(
             lyricsByTrackId = mergedLyricsByTrackId
         )
 
+        writeImportFiles(rawPath, draftPath, lyricPath, raw, draft, lyrics)
+
+        return importResponse(slug, uniquePlaylist, importedAt, uniqueTracks, ignoredDuplicateCount, mergedLyricsByTrackId, rawPath, draftPath, lyricPath)
+    }
+
+    private fun duplicateOnlyResponse(slug: String, playlist: Playlist, importedAt: String, ignoredDuplicateCount: Int, rawPath: Path, draftPath: Path, lyricPath: Path): ImportPlaylistResponse =
+        ImportPlaylistResponse(slug, playlist.id, playlist.name, importedAt, 0, ignoredDuplicateCount, 0, 0, rawPath.toString(), draftPath.toString(), lyricPath.toString(), "All tracks already exist in the import library.")
+
+    private suspend fun writeImportFiles(rawPath: Path, draftPath: Path, lyricPath: Path, raw: ImportedPlaylistFile, draft: TaggedPlaylistDraft, lyrics: ImportedLyricsFile) {
         AtomicFiles.writeString(rawPath, json.encodeToString(raw) + "\n")
         AtomicFiles.writeString(draftPath, json.encodeToString(draft) + "\n")
         AtomicFiles.writeString(lyricPath, json.encodeToString(lyrics) + "\n")
-
-        return ImportPlaylistResponse(
-            slug = slug,
-            playlistId = uniquePlaylist.id,
-            name = uniquePlaylist.name,
-            importedAt = importedAt,
-            trackCount = uniqueTracks.size,
-            ignoredDuplicateCount = ignoredDuplicateCount,
-            lyricsFetched = uniqueTracks.count { mergedLyricsByTrackId[it.id] != null },
-            lyricsMissing = uniqueTracks.count { mergedLyricsByTrackId[it.id] == null },
-            rawPath = rawPath.toString(),
-            taggedDraftPath = draftPath.toString(),
-            lyricsPath = lyricPath.toString(),
-            nextStep = "Analyze this import to write per-track evidence files."
-        )
     }
+
+    private fun importResponse(slug: String, playlist: Playlist, importedAt: String, tracks: List<Track>, ignoredDuplicateCount: Int, lyricsByTrackId: Map<String, String?>, rawPath: Path, draftPath: Path, lyricPath: Path): ImportPlaylistResponse =
+        ImportPlaylistResponse(
+            slug,
+            playlist.id,
+            playlist.name,
+            importedAt,
+            tracks.size,
+            ignoredDuplicateCount,
+            tracks.count { lyricsByTrackId[it.id] != null },
+            tracks.count { lyricsByTrackId[it.id] == null },
+            rawPath.toString(),
+            draftPath.toString(),
+            lyricPath.toString(),
+            "Analyze this import to write per-track evidence files."
+        )
 
     suspend fun list(evidence: EvidenceLibraryService): List<ImportRecord> {
         val analyzedKeys = evidence.existingKeys()
@@ -236,6 +249,7 @@ class PlaylistImportService(
             album = album,
             durationMs = durationMs,
             coverUrl = coverUrl,
+            playCount = playCount,
             tags = emptyList(),
             language = guessLanguage(title, artist),
             energy = INITIAL_SCORE,
@@ -246,7 +260,7 @@ class PlaylistImportService(
         )
 
     private fun Track.toSummary(): TrackSummary =
-        TrackSummary(provider, id, title, artist, album, durationMs, coverUrl)
+        TrackSummary(provider, id, title, artist, album, durationMs, coverUrl, playCount)
 
     private fun guessLanguage(title: String, artist: String): String {
         val text = title + artist

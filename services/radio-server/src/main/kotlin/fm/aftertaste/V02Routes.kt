@@ -13,13 +13,23 @@ fun Route.registerImportRoutes(
     engine: RadioEngine,
     imports: PlaylistImportService,
     evidence: EvidenceLibraryService,
-    jobs: AnalysisJobService
+    jobs: AnalysisJobService,
+    userRecords: NeteaseUserRecordImportService
 ) {
     val externalEvidence = ExternalEvidenceImportService(evidence)
 
     post("/import/playlist") {
         val request = call.receive<ImportPlaylistRequest>()
         call.respond(engine.importPlaylist(request.source))
+    }
+
+    post("/import/netease-user-record") {
+        val request = call.receive<ImportNeteaseUserRecordRequest>()
+        try {
+            call.respond(userRecords.importAllTime(request.uid))
+        } catch (cause: NeteaseUserRecordImportException) {
+            call.respond(HttpStatusCode.BadRequest, ErrorResponse(cause.message ?: "Invalid Netease uid."))
+        }
     }
 
     post("/import/evidence-json") {
@@ -39,6 +49,18 @@ fun Route.registerImportRoutes(
         val slug = call.parameters["slug"].orEmpty()
         val detail = imports.detail(slug, evidence)
         if (detail == null) call.respondNotFound("Import not found: $slug") else call.respond(detail)
+    }
+
+    get("/imports/{slug}/analysis-draft") {
+        val slug = call.parameters["slug"].orEmpty()
+        val draft = imports.draft(slug)
+        if (draft == null) call.respondNotFound("Import draft not found: $slug") else call.respond(draft)
+    }
+
+    get("/imports/{slug}/lyrics") {
+        val slug = call.parameters["slug"].orEmpty()
+        val lyrics = imports.lyrics(slug)
+        if (lyrics == null) call.respondNotFound("Import lyrics not found: $slug") else call.respond(lyrics)
     }
 
     delete("/imports/{slug}") {

@@ -73,6 +73,10 @@
   min-height: 40px;
 }
 
+.import-form-secondary {
+  margin-top: 10px;
+}
+
 .import-list {
   display: grid;
   gap: 12px;
@@ -119,6 +123,8 @@
 
 .import-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
 }
 

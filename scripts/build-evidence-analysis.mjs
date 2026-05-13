@@ -3,6 +3,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { buildTasteProfile } from "./build-taste-profile.mjs";
 
+const LISTENING_WEIGHT_SATURATION = 80;
+
 const draftPath = process.argv[2];
 
 if (!draftPath) {
@@ -46,7 +48,7 @@ function toEvidenceTrack(track, lyric) {
     metadata: true,
     lyrics: Boolean(lyric),
     audioFeatures: false,
-    userBehavior: false,
+    userBehavior: Number.isFinite(Number(track.playCount)),
     manual: false,
     model: false
   };
@@ -82,12 +84,13 @@ function toEvidenceTrack(track, lyric) {
     album: track.album,
     durationMs: track.durationMs,
     coverUrl: track.coverUrl,
+    playCount: track.playCount ?? null,
     language,
     moodTags: dedupeTags(moodTags),
     contextTags: dedupeTags(contextTags),
     soundTags: dedupeTags(soundTags),
     useTags: dedupeTags(useTags),
-    scores: inferScores(lyric, lyricThemes),
+    scores: inferScores(lyric, lyricThemes, track.playCount),
     evidence,
     lyricExcerpt: null,
     notes: buildNotes(lyric, lyricThemes, needsReview),
@@ -153,7 +156,7 @@ function countMatches(value, pattern) {
   return value.match(pattern)?.length ?? 0;
 }
 
-function inferScores(lyric, themes) {
+function inferScores(lyric, themes, playCount) {
   const has = (tag) => themes.includes(tag);
   const energy = has("bright") ? 0.56 : has("late-night") ? 0.34 : 0.45;
   const valence = has("separation") || has("loneliness") ? 0.32 : has("bright") || has("love") ? 0.58 : 0.5;
@@ -161,6 +164,7 @@ function inferScores(lyric, themes) {
   const coding = has("late-night") && !has("separation") ? 0.58 : 0.42;
   const skipRisk = !lyric ? 0.35 : themes.length === 0 ? 0.28 : 0.18;
   const confidence = lyric ? 0.42 : 0.18;
+  const listeningWeight = Math.min(1, Math.max(0, Number(playCount ?? 0) / LISTENING_WEIGHT_SATURATION));
   return {
     energy: evidenceScore(energy, confidence, lyric ? ["lyrics"] : ["metadata"]),
     valence: evidenceScore(valence, confidence, lyric ? ["lyrics"] : ["metadata"]),
@@ -171,7 +175,7 @@ function inferScores(lyric, themes) {
     acousticness: evidenceScore(0.5, 0.0, []),
     lyricDensity: evidenceScore(lyric ? 0.65 : 0.0, lyric ? 0.25 : 0.0, lyric ? ["lyrics"] : []),
     vocalPresence: evidenceScore(lyric ? 0.8 : 0.0, lyric ? 0.25 : 0.0, lyric ? ["lyrics"] : []),
-    familiarity: evidenceScore(0.5, 0.0, []),
+    familiarity: evidenceScore(listeningWeight || 0.5, listeningWeight ? 0.72 : 0.0, listeningWeight ? ["user_behavior"] : []),
     intensity: evidenceScore(energy, confidence, lyric ? ["lyrics"] : ["metadata"])
   };
 }
@@ -204,7 +208,8 @@ function buildNotes(lyric, themes, needsReview) {
 async function readJsonIfExists(file) {
   try {
     return JSON.parse(await fs.readFile(file, "utf8"));
-  } catch {
+  } catch (error) {
+    if (error?.code !== "ENOENT") console.warn(`Could not read JSON file ${file}: ${error.message}`);
     return null;
   }
 }
