@@ -191,7 +191,7 @@ function App() {
         setPlayback(await radioApi.now());
       }
       if (response.shouldPlan) {
-        await run(() => radioApi.chat(message));
+        await run(() => radioApi.chat(message, response.routingIntent));
       }
     } catch (event) {
       setError(event instanceof Error ? event.message : "Chat failed.");

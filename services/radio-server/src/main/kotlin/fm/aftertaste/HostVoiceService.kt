@@ -54,6 +54,7 @@ class HostVoiceService(
         val clock = OffsetDateTime.now()
         val timeText = "%d:%02d".format(clock.hour, clock.minute)
         val mood = hostMoodLabel(context)
+        val station = context.stationStyle?.label?.lowercase() ?: "the station"
         val leadLine = lead?.let { "Now, ${it.artist}, ${it.title}." } ?: "Let this chapter take its time."
         val leadIntro = lead?.let { "${it.title} by ${it.artist}" } ?: "this next record"
         val weather = context.weather?.let {
@@ -62,24 +63,24 @@ class HostVoiceService(
         val seed = listOf(segmentTitle, context.variationSeed, lead?.id).joinToString("|").hashCode()
         val firstChapterOpenings = listOf(
             "It is $timeText now.$weather We start quietly, with $leadIntro close enough to feel personal and far enough away to leave some room.",
-            "$timeText.$weather This first chapter does not need a grand entrance. $leadIntro can come in like someone lowering their voice at the end of the day.",
+            "$timeText.$weather This first chapter does not need a grand entrance. $leadIntro can come in at the pace of $station.",
             "The hour is $timeText.$weather For the first record, we keep the lights low and let $leadIntro set the pace without announcing itself too hard.",
             "${weather.trimStart()} The clock says $timeText, and this opening chapter is more about settling than declaring. $leadIntro gives us that first soft edge."
         )
         return when (chapterIndex) {
             0 -> "${firstChapterOpenings.randomBy(seed)} It keeps close to $mood without forcing the feeling into shape. $leadLine"
             1 -> listOf(
-                "A few songs in, the night has changed texture. This chapter stays with what remains after the noise falls away. $leadIntro gives that feeling a center, then the next songs get to move cleanly around it. $leadLine",
+                "A few songs in, the station has changed texture. This chapter stays with what remains after the noise falls away. $leadIntro gives that feeling a center, then the next songs get to move cleanly around it. $leadLine",
                 "We turn a little, but we do not break the spell. $leadIntro keeps the room low and steady, the kind of song that lets memory be present without making a speech out of it. $leadLine",
                 "The second chapter should feel less like a reset and more like a handoff. $leadIntro carries the thread forward, soft at the edges and clear in the middle. $leadLine"
             ).randomBy(seed)
             2 -> listOf(
-                "This is where the room gets a little wider. Not brighter exactly, just less closed in. $leadIntro gives the chapter more air while keeping the late-night pulse intact. $leadLine",
+                "This is where the room gets a little wider. $leadIntro gives the chapter more air while keeping the pulse of $station intact. $leadLine",
                 "Now we let the show breathe out. $leadIntro opens a wider lane, still careful, still close, but no longer holding every thought in place. $leadLine",
                 "The middle has done its quiet work, so this chapter can lift without rushing. $leadIntro is the door opening a little farther. $leadLine"
             ).randomBy(seed)
             else -> listOf(
-                "For the last chapter, we do not need to explain too much. The point is to leave the night somewhere softer than where it began, and $leadIntro feels right for that. $leadLine",
+                "For the last chapter, we do not need to explain too much. The point is to leave the hour somewhere softer than where it began, and $leadIntro feels right for that. $leadLine",
                 "We take the final turn without tying a ribbon around it. $leadIntro can carry us out slowly, with enough distance to feel calm and enough warmth to stay near. $leadLine",
                 "This last stretch is for letting the room settle. $leadIntro does not demand an answer; it just gives the ending somewhere gentle to land. $leadLine"
             ).randomBy(seed)
@@ -93,7 +94,7 @@ class HostVoiceService(
             routing.language?.startsWith("zh") == true && routing.energy == "low" -> "a low-energy Chinese indie thread"
             routing.routine == "late-night-coding" -> "late-night focus with the edges softened"
             routing.energy == "low" -> "a quiet, low-energy stretch"
-            context.mood.isNullOrBlank() -> "that late-night feeling where memory is present, but not loud"
+            context.mood.isNullOrBlank() -> context.stationStyle?.hostStyle ?: "that quiet feeling where memory is present, but not loud"
             else -> "the feeling you asked for"
         }
     }

@@ -176,7 +176,8 @@ data class ImportEvidenceJsonResponse(
     val importedTrackCount: Int,
     val ignoredDuplicateCount: Int,
     val totalTrackCount: Int,
-    val sourceName: String? = null
+    val sourceName: String? = null,
+    val qualityWarnings: List<String> = emptyList()
 )
 
 @Serializable

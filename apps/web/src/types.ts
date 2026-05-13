@@ -46,7 +46,17 @@ export type HealthResponse = {
   status: string;
   provider: string;
   hostConfig: HostConfig;
+  stationStyle: StationStyle;
   version: string;
+};
+
+export type StationStyle = {
+  daypart: string;
+  label: string;
+  hostStyle: string;
+  energyTarget: number;
+  nightWeight: number;
+  valenceWeight: number;
 };
 
 export type AdapterHealthResponse = {
@@ -122,6 +132,17 @@ export type AgentChatResponse = {
   mode: string;
   shouldPlan?: boolean;
   command?: "next" | "previous" | "pause" | "play" | "now" | null;
+  routingIntent?: RoutingIntent | null;
+};
+
+export type RoutingIntent = {
+  language?: string | null;
+  energy?: string | null;
+  routine?: string | null;
+  moodTag?: string | null;
+  avoid: string[];
+  artists: string[];
+  extraTags: string[];
 };
 
 export type TrackSummary = {

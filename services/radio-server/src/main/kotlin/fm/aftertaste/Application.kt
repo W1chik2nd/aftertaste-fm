@@ -108,7 +108,7 @@ fun Application.module() {
 
         route("/api") {
             get("/health") {
-                call.respond(HealthResponse("ok", provider.name, hostConfig))
+                call.respond(HealthResponse("ok", provider.name, hostConfig, stationStyleFor(java.time.OffsetDateTime.now())))
             }
 
             get("/health/adapter") {
@@ -159,7 +159,7 @@ fun Application.module() {
 
             post("/chat") {
                 val request = call.receive<ChatRequest>()
-                call.respond(engine.planToday(request.message))
+                call.respond(engine.planToday(request.message, request.routingIntent))
             }
 
             post("/agent/chat") {

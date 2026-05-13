@@ -29,12 +29,13 @@ class RadioEngine(
         queue.restore(restored.playback, restored.showPlan)
     }
 
-    suspend fun planToday(mood: String? = null): PlanResponse = mutex.withLock {
+    suspend fun planToday(mood: String? = null, routingIntent: RoutingIntent? = null): PlanResponse = mutex.withLock {
         refreshWeatherForPlanning()
         val tasteProfile = tasteRepository.load()
         val catalogArtists = tasteProfile.tracks.map { it.artist }.distinct()
-        val baseContext = agent.buildContext(mood, hostConfig, tasteProfile.rules, catalogArtists)
+        val baseContext = agent.buildContext(mood, hostConfig, tasteProfile.rules, catalogArtists, routingIntent)
         val context = withMemory(withWeather(baseContext))
+        val stationHostConfig = hostConfig.copy(hostStyle = context.stationStyle?.hostStyle ?: hostConfig.hostStyle)
         store.rememberMessage("user", mood ?: "Generate today's show.")
         val candidateSelection = candidateSelector.select(context, tasteProfile)
         val tracks = if (candidateSelection.tracks.isNotEmpty()) {
@@ -44,12 +45,12 @@ class RadioEngine(
         }
         val llmPlan = llmPlanner.plan(
             context = context,
-            hostConfig = hostConfig,
+            hostConfig = stationHostConfig,
             candidates = tracks,
             tasteProfile = candidateSelection.profile,
             taggedCandidates = candidateSelection.tracks
         )
-        activePlan = hydratePlanStreams(llmPlan?.toShowPlan(tracks, hostConfig) ?: planner.plan(tracks, context))
+        activePlan = hydratePlanStreams(llmPlan?.toShowPlan(tracks, stationHostConfig) ?: planner.plan(tracks, context, stationHostConfig))
         queue.load(activePlan!!)
         store.rememberPlan(activePlan!!)
         persist()

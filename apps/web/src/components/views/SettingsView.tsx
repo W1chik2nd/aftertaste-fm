@@ -42,7 +42,8 @@ export function SettingsView({
           <h2>Host</h2>
           <Readout icon={<Languages size={18} />} label="Language" value={health?.hostConfig.hostLanguage ?? "en-US"} />
           <Readout icon={<Server size={18} />} label="Name" value={health?.hostConfig.hostName ?? "Aftertaste"} />
-          <Readout icon={<Wifi size={18} />} label="Style" value={health?.hostConfig.hostStyle ?? "calm late-night radio"} />
+          <Readout icon={<Wifi size={18} />} label="Default style" value={health?.hostConfig.hostStyle ?? "calm late-night radio"} />
+          <Readout icon={<CloudSun size={18} />} label="Current mode" value={health?.stationStyle.hostStyle ?? "calm late-night radio"} />
         </section>
 
         <section className="settings-block">

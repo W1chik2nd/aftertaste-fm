@@ -8,21 +8,25 @@ class RadioAgent {
         mood: String?,
         hostConfig: HostConfig,
         tasteRules: TasteRules = TasteRules(),
-        catalogArtists: List<String> = emptyList()
+        catalogArtists: List<String> = emptyList(),
+        routingOverride: RoutingIntent? = null
     ): RecommendationContext {
         val cleanedMood = mood?.trim()?.takeIf { it.isNotBlank() }
-        val routing = IntentExtractor.extract(cleanedMood, tasteRules, catalogArtists)
+        val now = OffsetDateTime.now()
+        val stationStyle = stationStyleFor(now)
+        val routing = routingOverride ?: IntentExtractor.extract(cleanedMood, tasteRules, catalogArtists)
         val intent = inferIntent(cleanedMood, routing)
-        val signals = buildSignals(hostConfig, routing)
-        val seed = "${cleanedMood ?: "daily"}-${OffsetDateTime.now().toEpochSecond()}-${Random.nextInt(0, 100_000)}"
+        val signals = buildSignals(hostConfig, routing, stationStyle)
+        val seed = "${cleanedMood ?: "daily"}-${now.toEpochSecond()}-${Random.nextInt(0, 100_000)}"
         return RecommendationContext(
             mood = cleanedMood,
-            localTime = OffsetDateTime.now().toString(),
+            localTime = now.toString(),
             hostLanguage = hostConfig.hostLanguage,
             intent = intent,
             routing = routing,
             recentSignals = signals,
-            variationSeed = seed
+            variationSeed = seed,
+            stationStyle = stationStyle
         )
     }
 
@@ -48,6 +52,7 @@ class RadioAgent {
                 "routine: ${context.routing.routine ?: context.mood ?: "daily late-night listening"}",
                 "language hint: ${context.routing.language ?: "none"}",
                 context.routing.artists.takeIf { it.isNotEmpty() }?.let { "artist hint: ${it.joinToString(", ")}" },
+                context.stationStyle?.let { "station mode: ${it.label}, ${it.hostStyle}" },
                 "time: ${context.localTime ?: "now"}",
                 context.weather?.let { "weather: ${it.locationName}, ${it.condition}, ${"%.0f".format(it.temperatureC)}C" },
                 "host: ${context.hostLanguage}, ${plan.hostConfig.hostStyle}",
@@ -80,16 +85,19 @@ class RadioAgent {
             else -> "conversation_tuning"
         }
 
-    private fun buildSignals(hostConfig: HostConfig, routing: RoutingIntent): List<String> = buildList {
+    private fun buildSignals(hostConfig: HostConfig, routing: RoutingIntent, stationStyle: StationStyle): List<String> = buildList {
         add("host=${hostConfig.hostName}")
         add("language=${hostConfig.hostLanguage}")
         add("speech=${hostConfig.segmentSpeechMode}")
+        add("station=${stationStyle.daypart}")
+        add("style=${stationStyle.hostStyle}")
         routing.routine?.let { add("routine=$it") }
         routing.energy?.let { add("energy=$it") }
         routing.language?.let { add("language-hint=$it") }
         routing.moodTag?.let { add("mood-tag=$it") }
         routing.avoid.forEach { add("avoid=$it") }
         routing.artists.forEach { add("artist=$it") }
+        routing.extraTags.forEach { add("tag=$it") }
     }
 
     /**

@@ -13,6 +13,7 @@ import type {
   LyricsResponse,
   PlanResponse,
   PlaybackState,
+  RoutingIntent,
   SettingsResponse,
   TasteProfileResponse,
   TasteTagsResponse,
@@ -79,10 +80,10 @@ export const radioApi = {
     }),
   refreshWeather: () => request<SettingsResponse>("/api/weather/refresh", { method: "POST" }),
   planToday: () => request<PlanResponse>("/api/plan/today", { method: "POST" }),
-  chat: (message: string) =>
+  chat: (message: string, routingIntent?: RoutingIntent | null) =>
     request<PlanResponse>("/api/chat", {
       method: "POST",
-      body: JSON.stringify({ message })
+      body: JSON.stringify({ message, routingIntent })
     }),
   agentChat: (message: string) =>
     request<AgentChatResponse>("/api/agent/chat", {

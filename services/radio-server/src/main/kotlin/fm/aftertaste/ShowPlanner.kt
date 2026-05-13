@@ -8,7 +8,7 @@ class ShowPlanner(
     private val hostConfig: HostConfig,
     private val hostVoiceService: HostVoiceService
 ) {
-    fun plan(tracks: List<Track>, context: RecommendationContext): ShowPlan {
+    fun plan(tracks: List<Track>, context: RecommendationContext, activeHostConfig: HostConfig = hostConfig): ShowPlan {
         val safeTracks = tracks.ifEmpty { fallbackTracks }
         val today = LocalDate.now()
         val title = chooseTitle(context, today)
@@ -32,7 +32,7 @@ class ShowPlanner(
             id = "show-${today}-${System.currentTimeMillis()}",
             title = title,
             generatedAt = OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-            hostConfig = hostConfig,
+            hostConfig = activeHostConfig,
             segments = segments
         )
     }

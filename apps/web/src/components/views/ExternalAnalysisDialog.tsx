@@ -16,6 +16,14 @@ If your chat interface supports creating downloadable files, put the JSON into a
 
 For every track, keep provider, id, title, artist, album, durationMs, coverUrl, and playCount exactly as they appear in the draft. If playCount exists, use it only as user_behavior evidence for familiarity and durable preference strength. High playCount does not automatically mean high energy, happy mood, or better fit for every moment.
 
+Acceptance criteria:
+- Analyze every track individually. Do not apply one playlist-level template to all tracks.
+- Do not give every track the same numeric scores. Similar songs can be close, but the scores should still reflect track-level differences.
+- moodTags, contextTags, soundTags, and useTags should usually contain useful track-level signals when lyrics or metadata allow it.
+- speechiness means rap or spoken-word density. Sung pop ballads should usually have low speechiness unless the lyrics are delivered like rap.
+- notes and analysisNotes.summary must be specific to the track, not the same repeated sentence.
+- Use only the score keys shown in the schema. Do not add extra score fields.
+
 Each track must use this shape:
 {
   "provider": "netease",
@@ -195,9 +203,14 @@ export function ExternalAnalysisDialog({ row, onClose, onDownloadDraft, onDownlo
             aria-label="Paste analyzed JSON"
           />
           {result ? (
-            <p className="muted-line">
-              Imported {result.importedTrackCount} tracks · ignored {result.ignoredDuplicateCount} duplicates
-            </p>
+            <div className="external-analysis-result">
+              <p className="muted-line">
+                Imported {result.importedTrackCount} tracks · ignored {result.ignoredDuplicateCount} duplicates
+              </p>
+              {result.qualityWarnings.map((warning) => (
+                <p className="muted-line" key={warning}>{warning}</p>
+              ))}
+            </div>
           ) : null}
         </div>
       </section>

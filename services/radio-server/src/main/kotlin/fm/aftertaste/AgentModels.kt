@@ -3,14 +3,18 @@ package fm.aftertaste
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class ChatRequest(val message: String)
+data class ChatRequest(
+    val message: String,
+    val routingIntent: RoutingIntent? = null
+)
 
 @Serializable
 data class AgentChatResponse(
     val message: String,
     val mode: String,
     val shouldPlan: Boolean = false,
-    val command: String? = null
+    val command: String? = null,
+    val routingIntent: RoutingIntent? = null
 )
 
 @Serializable

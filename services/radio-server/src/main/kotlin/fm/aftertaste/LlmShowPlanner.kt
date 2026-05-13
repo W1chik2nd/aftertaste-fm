@@ -59,7 +59,7 @@ class ConfiguredLlmShowPlanner(
         if (candidates.size < SEGMENT_TRACK_COUNT) return null
         val outputText = completionClient.complete(
             systemPrompt(hostConfig),
-            userPrompt(context, candidates, tasteProfile, taggedCandidates),
+            userPrompt(context, hostConfig, candidates, tasteProfile, taggedCandidates),
             maxTokens = LLM_PLAN_MAX_TOKENS,
             jsonMode = true,
             responseSchema = responseFormatSchema(),
@@ -71,13 +71,13 @@ class ConfiguredLlmShowPlanner(
 
     private fun systemPrompt(hostConfig: HostConfig): String =
         """
-        You are Aftertaste, a restrained private late-night radio director.
+        You are Aftertaste, a restrained private radio director.
         Create a radio show from ONLY the provided candidate track ids.
         Each segment is a chapter. The first trackId is the chapter lead: the host will speak over that track's opening, then the rest of the chapter plays without interruption.
         Do not introduce every song. Talk once per chapter, not before every track.
         Host language must be ${hostConfig.hostLanguage}. For v0.1, write natural English even when tracks are Chinese.
-        Style: ${hostConfig.hostStyle}. Calm, specific, companionable, never oily, never encyclopedic.
-        Host scripts should feel like a real late-night radio break, not product copy.
+        Style: ${hostConfig.hostStyle}. Specific, companionable, never oily, never encyclopedic.
+        Host scripts should feel like a real radio break for the current station mode, not product copy.
 
         Structure each hostScript like this:
         1. Vary the opening across chapters. Do not start every script with the time, the city, or the same sentence shape.
@@ -98,6 +98,7 @@ class ConfiguredLlmShowPlanner(
 
     private fun userPrompt(
         context: RecommendationContext,
+        hostConfig: HostConfig,
         candidates: List<Track>,
         tasteProfile: TasteProfile?,
         taggedCandidates: List<TaggedTrack>
@@ -124,6 +125,7 @@ class ConfiguredLlmShowPlanner(
         User request: ${context.mood ?: "Generate today's show."}
         Intent: ${context.intent}
         Routing intent: ${routingSummary(context.routing)}
+        Station mode: ${context.stationStyle?.label ?: "Default"}; style=${context.stationStyle?.hostStyle ?: hostConfig.hostStyle}
         Context signals: ${context.recentSignals.joinToString(", ")}
         Variation seed: ${context.variationSeed ?: "none"}
         Local time: ${context.localTime}

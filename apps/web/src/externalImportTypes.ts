@@ -3,6 +3,7 @@ export type ImportEvidenceJsonResponse = {
   ignoredDuplicateCount: number;
   totalTrackCount: number;
   sourceName?: string | null;
+  qualityWarnings: string[];
 };
 
 export type DeleteImportResponse = {

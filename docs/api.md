@@ -6,7 +6,29 @@ Base URL: `http://localhost:8080`
 
 `GET /api/health`
 
-Returns radio-server status, provider name, and host config.
+Returns radio-server status, provider name, default host config, and the current time-based station style.
+
+```json
+{
+  "status": "ok",
+  "provider": "netease",
+  "hostConfig": {
+    "hostLanguage": "en-US",
+    "hostStyle": "calm late-night radio",
+    "hostName": "Aftertaste",
+    "segmentSpeechMode": "between_segments"
+  },
+  "stationStyle": {
+    "daypart": "evening",
+    "label": "Evening city",
+    "hostStyle": "evening radio with groove, warmth, and city-light momentum",
+    "energyTarget": 0.52,
+    "nightWeight": 0.28,
+    "valenceWeight": 0.14
+  },
+  "version": "0.1.0"
+}
+```
 
 `GET /api/health/adapter`
 
@@ -101,11 +123,12 @@ Body:
 
 ```json
 {
-  "message": "something quiet for late night coding"
+  "message": "something quiet for late night coding",
+  "routingIntent": null
 }
 ```
 
-Returns a newly planned show and updated queue. The mock planner uses the message as mood guidance.
+Returns a newly planned show and updated queue. `routingIntent` is optional; when present, it is the structured router output from `POST /api/agent/chat` and is used for candidate selection before planning.
 
 `POST /api/agent/chat`
 
@@ -117,7 +140,7 @@ Body:
 }
 ```
 
-Routes a free-form user message through the agent. The response is `{ "message": "...", "mode": "...", "shouldPlan": false, "command": "next" | "previous" | "pause" | "play" | "now" | null }`. When `shouldPlan` is true, the client may call `POST /api/chat` with the same message to materialize a new show. When `command` is set, the engine has already applied that playback action.
+Routes a free-form user message through the agent. The response is `{ "message": "...", "mode": "...", "shouldPlan": false, "command": "next" | "previous" | "pause" | "play" | "now" | null, "routingIntent": null }`. When `shouldPlan` is true, the client calls `POST /api/chat` with the same message and `routingIntent` to materialize a new show. When `command` is set, the engine has already applied that playback action.
 
 ## Playlists
 
@@ -193,7 +216,7 @@ Body:
 }
 ```
 
-Imports externally analyzed evidence JSON directly into `data/taste/tracks/<provider>/<id>.json`, then rebuilds `tracks.evidence.json`. The JSON may be an object with a `tracks` array or an array of `EvidenceTrackAnalysis` objects. Tracks whose normalized title and artist already exist are ignored.
+Imports externally analyzed evidence JSON directly into `data/taste/tracks/<provider>/<id>.json`, then rebuilds `tracks.evidence.json`. The JSON may be an object with a `tracks` array or an array of `EvidenceTrackAnalysis` objects. Tracks whose normalized title and artist already exist are ignored. Batch imports are rejected before writing when deterministic quality checks detect playlist-level templating, such as identical scores across most fields, missing tag dimensions, or repeated summaries.
 
 Response example:
 
@@ -202,7 +225,8 @@ Response example:
   "importedTrackCount": 12,
   "ignoredDuplicateCount": 3,
   "totalTrackCount": 15,
-  "sourceName": "tracks.evidence.json"
+  "sourceName": "tracks.evidence.json",
+  "qualityWarnings": []
 }
 ```
 

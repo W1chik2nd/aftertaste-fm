@@ -106,3 +106,8 @@
   background: #ffffff;
   line-height: 1.45;
 }
+
+.external-analysis-result {
+  display: grid;
+  gap: 4px;
+}

@@ -51,7 +51,8 @@ class AgentChatService(
                 message = intent.message?.ifBlank { fallbackMessage } ?: fallbackMessage,
                 mode = "llm-chat:${runtimeConfig.displayName}",
                 shouldPlan = intent.shouldPlan,
-                command = intent.command
+                command = intent.command,
+                routingIntent = intent.routingIntent.takeIf { intent.shouldPlan }
             )
         }.getOrElse { error ->
             logger.warn("Agent chat fallback: {}", error.message)
@@ -73,7 +74,8 @@ class AgentChatService(
         Decide command only for clear playback controls: next, previous, pause, play, or now.
         For recommendation complaints such as repeated songs for the same request, acknowledge the issue and set shouldPlan=true when the user wants a correction or retune.
         Avoid product-planning jargon and avoid claiming facts about a song unless they are present in the current playback context.
-        Return only JSON: {"message":"...","shouldPlan":false,"command":null}
+        When shouldPlan=true, fill routingIntent with structured preferences. Put explicit genres, styles, scenes, and sound descriptors in extraTags as lowercase kebab-case. Use null for unknown scalar fields and [] for empty lists.
+        Return only JSON: {"message":"...","shouldPlan":false,"command":null,"routingIntent":null}
         """.trimIndent()
 
     private fun intentUserPrompt(message: String, playback: PlaybackState): String =
@@ -91,7 +93,8 @@ class AgentChatService(
             AgentIntentDecision(
                 message = parsed.message.ifBlank { fallbackMessage },
                 shouldPlan = parsed.shouldPlan,
-                command = parsed.command?.takeIf { it in playbackCommands }
+                command = parsed.command?.takeIf { it in playbackCommands },
+                routingIntent = parsed.routingIntent?.clean()
             )
         }.getOrElse {
             AgentIntentDecision(message = fallbackMessage)
@@ -108,6 +111,7 @@ class AgentChatService(
                 add(JsonPrimitive("message"))
                 add(JsonPrimitive("shouldPlan"))
                 add(JsonPrimitive("command"))
+                add(JsonPrimitive("routingIntent"))
             })
             put("properties", buildJsonObject {
                 put("message", stringSchema())
@@ -124,7 +128,30 @@ class AgentChatService(
                         add(JsonNull)
                     })
                 })
+                put("routingIntent", routingIntentSchema())
             })
+        })
+    }
+
+    private fun routingIntentSchema(): JsonObject = buildJsonObject {
+        put("type", buildJsonArray {
+            add(JsonPrimitive("object"))
+            add(JsonPrimitive("null"))
+        })
+        put("additionalProperties", false)
+        put("required", buildJsonArray {
+            listOf("language", "energy", "routine", "moodTag", "avoid", "artists", "extraTags").forEach {
+                add(JsonPrimitive(it))
+            }
+        })
+        put("properties", buildJsonObject {
+            put("language", nullableStringSchema())
+            put("energy", nullableStringSchema())
+            put("routine", nullableStringSchema())
+            put("moodTag", nullableStringSchema())
+            put("avoid", stringArraySchema())
+            put("artists", stringArraySchema())
+            put("extraTags", stringArraySchema())
         })
     }
 
@@ -154,13 +181,15 @@ class AgentChatService(
 private data class AgentIntentOutput(
     val message: String = "",
     val shouldPlan: Boolean = false,
-    val command: String? = null
+    val command: String? = null,
+    val routingIntent: RoutingIntent? = null
 )
 
 internal data class AgentIntentDecision(
     val message: String? = null,
     val shouldPlan: Boolean = false,
-    val command: String? = null
+    val command: String? = null,
+    val routingIntent: RoutingIntent? = null
 )
 
 internal val playbackCommands = setOf("next", "previous", "pause", "play", "now")
@@ -198,3 +227,29 @@ internal fun explicitCommandDecision(message: String, playback: PlaybackState): 
 
 private fun isExplicitCommand(text: String, commands: List<String>): Boolean =
     commands.any { command -> text == command || text == "$command." || text == "$command please" }
+
+private fun nullableStringSchema(): JsonObject = buildJsonObject {
+    put("type", buildJsonArray {
+        add(JsonPrimitive("string"))
+        add(JsonPrimitive("null"))
+    })
+}
+
+private fun stringArraySchema(): JsonObject = buildJsonObject {
+    put("type", "array")
+    put("items", stringSchema())
+}
+
+private fun RoutingIntent.clean(): RoutingIntent =
+    copy(
+        language = language?.trim()?.takeIf { it.isNotBlank() },
+        energy = energy?.trim()?.takeIf { it.isNotBlank() },
+        routine = routine?.trim()?.takeIf { it.isNotBlank() },
+        moodTag = moodTag?.trim()?.takeIf { it.isNotBlank() },
+        avoid = avoid.cleaned(),
+        artists = artists.cleaned(),
+        extraTags = extraTags.map { safeFileStem(it).lowercase() }.cleaned()
+    )
+
+private fun List<String>.cleaned(): List<String> =
+    map { it.trim() }.filter { it.isNotBlank() }.distinct()

@@ -11,7 +11,8 @@ data class RecommendationContext(
     val routing: RoutingIntent = RoutingIntent(),
     val recentSignals: List<String> = emptyList(),
     val weather: WeatherSnapshot? = null,
-    val variationSeed: String? = null
+    val variationSeed: String? = null,
+    val stationStyle: StationStyle? = null
 )
 
 @Serializable
@@ -115,6 +116,7 @@ data class HealthResponse(
     val status: String,
     val provider: String,
     val hostConfig: HostConfig,
+    val stationStyle: StationStyle,
     val version: String = "0.1.0"
 )
 
