@@ -11,7 +11,7 @@ object Env {
         System.getenv(name)?.takeIf { it.isNotBlank() } ?: fileValues[name]?.takeIf { it.isNotBlank() }
 
     fun projectRoot(): Path =
-        dotEnvPath?.parent ?: Path.of("").toAbsolutePath()
+        dotEnvPath?.parent ?: findProjectRoot() ?: Path.of("").toAbsolutePath()
 
     fun path(name: String, defaultRelativePath: String): Path {
         val configured = value(name)
@@ -47,5 +47,14 @@ object Env {
         return candidates
             .map { it.resolve(".env") }
             .firstOrNull { Files.exists(it) }
+    }
+
+    private fun findProjectRoot(): Path? {
+        val candidates = generateSequence(Path.of("").toAbsolutePath()) { current ->
+            current.parent
+        }.take(6)
+        return candidates.firstOrNull { path ->
+            Files.exists(path.resolve("package.json")) && Files.exists(path.resolve("AGENTS.md"))
+        }
     }
 }

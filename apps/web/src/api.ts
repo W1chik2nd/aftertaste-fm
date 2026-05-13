@@ -1,14 +1,26 @@
 import type {
   AdapterHealthResponse,
   AgentChatResponse,
+  AnalysisJobView,
+  AnalyzeImportRequest,
+  AnalyzeJobStartResponse,
+  EvidenceTrackAnalysis,
   HealthResponse,
+  ImportDetail,
+  ImportPlaylistResponse,
+  ImportRecord,
   LyricsResponse,
   PlanResponse,
   PlaybackState,
-  SettingsResponse
+  SettingsResponse,
+  TasteProfileResponse,
+  TasteTracksResponse
 } from "./types";
+import type { ImportEvidenceJsonResponse } from "./externalImportTypes";
 
-const API_BASE = import.meta.env.VITE_RADIO_API_BASE ?? "http://localhost:8080";
+const DEFAULT_API_BASE = "";
+const API_BASE = import.meta.env.VITE_RADIO_API_BASE ?? DEFAULT_API_BASE;
+const ERROR_SNIPPET_CHARS = 240;
 
 export function resolveMediaUrl(url?: string | null) {
   if (!url) return undefined;
@@ -33,8 +45,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    const snippet = text.slice(0, 240).trim();
+    let text = "";
+    try {
+      text = await response.text();
+    } catch (event) {
+      console.warn("Could not read API error body.", event);
+    }
+    const snippet = text.slice(0, ERROR_SNIPPET_CHARS).trim();
     const message = snippet
       ? `${response.status} ${response.statusText}: ${snippet}`
       : `${response.status} ${response.statusText}`;
@@ -68,6 +85,37 @@ export const radioApi = {
       body: JSON.stringify({ message })
     }),
   lyrics: (trackId: string) => request<LyricsResponse>(`/api/lyrics/${encodeURIComponent(trackId)}`),
+  importPlaylist: (source: string) =>
+    request<ImportPlaylistResponse>("/api/import/playlist", {
+      method: "POST",
+      body: JSON.stringify({ source })
+    }),
+  importEvidenceJson: (content: string, sourceName?: string) =>
+    request<ImportEvidenceJsonResponse>("/api/import/evidence-json", {
+      method: "POST",
+      body: JSON.stringify({ content, sourceName })
+    }),
+  imports: () => request<ImportRecord[]>("/api/imports"),
+  importDetail: (slug: string) => request<ImportDetail>(`/api/imports/${encodeURIComponent(slug)}`),
+  analyzeImport: (slug: string, body: AnalyzeImportRequest = {}) =>
+    request<AnalyzeJobStartResponse>(`/api/imports/${encodeURIComponent(slug)}/analyze`, {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  job: (jobId: string) => request<AnalysisJobView>(`/api/jobs/${encodeURIComponent(jobId)}`),
+  cancelJob: (jobId: string) =>
+    request<AnalysisJobView>(`/api/jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" }),
+  tasteTracks: (params: Record<string, string | number | undefined | null> = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") query.set(key, String(value));
+    });
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<TasteTracksResponse>(`/api/taste/tracks${suffix}`);
+  },
+  tasteTrack: (provider: string, id: string) =>
+    request<EvidenceTrackAnalysis>(`/api/taste/tracks/${encodeURIComponent(provider)}/${encodeURIComponent(id)}`),
+  tasteProfile: () => request<TasteProfileResponse>("/api/taste/profile"),
   play: () => request<PlaybackState>("/api/play", { method: "POST" }),
   pause: () => request<PlaybackState>("/api/pause", { method: "POST" }),
   next: () => request<PlaybackState>("/api/next", { method: "POST" }),

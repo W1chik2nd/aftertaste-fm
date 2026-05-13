@@ -15,6 +15,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
+import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -22,6 +23,9 @@ import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
 import java.time.OffsetDateTime
 import kotlin.random.Random
+
+private const val FISH_ERROR_BODY_CHARS = 220
+private const val HOST_CACHE_KEY_CHARS = 24
 
 class HostVoiceService(
     private val httpClient: HttpClient = HttpClients.shared
@@ -127,7 +131,7 @@ class HostVoiceService(
                 setBody(buildFishPayload(script).toString())
             }
             if (response.status.value !in 200..299) {
-                val reason = runCatching { response.bodyAsText().take(220) }.getOrNull()
+                val reason = response.bodyAsText().take(FISH_ERROR_BODY_CHARS)
                 logger.warn("Fish TTS HTTP {}: {}", response.status.value, reason)
                 return@withContext HostVoiceAsset(script = script, audioUrl = null, cacheKey = digest)
             }
@@ -140,9 +144,9 @@ class HostVoiceService(
             ).use { sink ->
                 response.bodyAsChannel().copyTo(sink)
             }
-            runCatching {
+            try {
                 Files.move(tempFile, outputFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
-            }.getOrElse {
+            } catch (unsupported: AtomicMoveNotSupportedException) {
                 Files.move(tempFile, outputFile, StandardCopyOption.REPLACE_EXISTING)
             }
             HostVoiceAsset(script = script, audioUrl = "/media/tts/${outputFile.fileName}", cacheKey = digest)
@@ -152,7 +156,7 @@ class HostVoiceService(
         MessageDigest.getInstance("SHA-256")
             .digest("$fishModel|${fishVoiceId.orEmpty()}|$fishFormat|$script".toByteArray())
             .joinToString("") { "%02x".format(it) }
-            .take(24)
+            .take(HOST_CACHE_KEY_CHARS)
 
     private fun buildFishPayload(script: String) = buildJsonObject {
         put("text", script)

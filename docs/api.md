@@ -39,7 +39,20 @@ Each returns the updated now-playing state.
 
 `GET /api/settings`
 
-Returns runtime settings, including optional `weatherLocation` and the latest `weather` snapshot.
+Returns runtime settings, including optional `weatherLocation`, the latest `weather` snapshot, and integration status only. API key values are never returned.
+
+```json
+{
+  "weatherLocation": "Leeds",
+  "weather": null,
+  "integrations": [
+    { "id": "llm", "label": "LLM", "configured": true },
+    { "id": "fish", "label": "Fish TTS", "configured": false },
+    { "id": "netease", "label": "Netease cookie", "configured": false },
+    { "id": "openweather", "label": "OpenWeather", "configured": false }
+  ]
+}
+```
 
 `POST /api/settings/location`
 
@@ -126,15 +139,207 @@ Body:
 }
 ```
 
-Extracts a playlist id, fetches normalized playlist metadata through the strict Netease import provider, and writes local private files:
+Extracts a playlist id, fetches normalized playlist metadata through the strict Netease import provider, fetches lyrics inline, ignores duplicate songs by normalized `title + artist`, and writes local private files:
 
 - `data/taste/imports/<playlist>.raw.json`
 - `data/taste/drafts/<playlist>.tagged-draft.json`
 - `data/taste/lyrics/<playlist>.lyrics.json`
 
-The import step does not trigger LLM analysis. It creates a draft with empty tags and neutral scores so the playlist can be reviewed manually or analyzed offline before being promoted into `data/taste/tracks.evidence.json`.
+The import step does not trigger LLM analysis. It creates a draft with empty tags and neutral scores so the playlist can be analyzed explicitly.
 
-Response fields include `rawPath`, `taggedDraftPath`, `lyricsPath`, `trackCount`, and `nextStep`.
+Response example:
+
+```json
+{
+  "slug": "netease-123456-night-shelf",
+  "playlistId": "123456",
+  "name": "Night Shelf",
+  "importedAt": "2026-05-13T12:00:00Z",
+  "trackCount": 42,
+  "ignoredDuplicateCount": 0,
+  "lyricsFetched": 36,
+  "lyricsMissing": 6,
+  "rawPath": "/.../data/taste/imports/netease-123456-night-shelf.raw.json",
+  "taggedDraftPath": "/.../data/taste/drafts/netease-123456-night-shelf.tagged-draft.json",
+  "lyricsPath": "/.../data/taste/lyrics/netease-123456-night-shelf.lyrics.json",
+  "nextStep": "Analyze this import to write per-track evidence files."
+}
+```
+
+`POST /api/import/evidence-json`
+
+Body:
+
+```json
+{
+  "sourceName": "tracks.evidence.json",
+  "content": "{\"version\":2,\"tracks\":[...]}"
+}
+```
+
+Imports externally analyzed evidence JSON directly into `data/taste/tracks/<provider>/<id>.json`, then rebuilds `tracks.evidence.json`. The JSON may be an object with a `tracks` array or an array of `EvidenceTrackAnalysis` objects. Tracks whose normalized title and artist already exist are ignored.
+
+Response example:
+
+```json
+{
+  "importedTrackCount": 12,
+  "ignoredDuplicateCount": 3,
+  "totalTrackCount": 15,
+  "sourceName": "tracks.evidence.json"
+}
+```
+
+`GET /api/imports`
+
+Returns imported playlists with analysis status.
+
+```json
+[
+  {
+    "slug": "netease-123456-night-shelf",
+    "playlistId": "123456",
+    "name": "Night Shelf",
+    "trackCount": 42,
+    "importedAt": "2026-05-13T12:00:00Z",
+    "analyzedAt": null,
+    "status": "imported",
+    "analyzedTrackCount": 0,
+    "pendingAnalysisCount": 42
+  }
+]
+```
+
+`GET /api/imports/{slug}`
+
+Returns one import plus normalized track summaries.
+
+```json
+{
+  "slug": "netease-123456-night-shelf",
+  "playlistId": "123456",
+  "name": "Night Shelf",
+  "trackCount": 42,
+  "importedAt": "2026-05-13T12:00:00Z",
+  "analyzedAt": null,
+  "status": "imported",
+  "analyzedTrackCount": 0,
+  "pendingAnalysisCount": 42,
+  "tracks": [
+    { "provider": "netease", "id": "111", "title": "Track", "artist": "Artist" }
+  ]
+}
+```
+
+## Analysis Jobs
+
+`POST /api/imports/{slug}/analyze`
+
+Body:
+
+```json
+{
+  "force": false,
+  "trackIds": null
+}
+```
+
+Starts an in-memory analysis job and returns immediately. `force=false` skips tracks that already have per-track evidence.
+
+```json
+{
+  "jobId": "4da8...",
+  "estimatedCalls": 42,
+  "estimatedCostUsd": null,
+  "model": "gpt-5.2"
+}
+```
+
+`GET /api/jobs/{jobId}`
+
+Returns job progress.
+
+```json
+{
+  "jobId": "4da8...",
+  "status": "running",
+  "processed": 10,
+  "total": 42,
+  "current": { "provider": "netease", "id": "111", "title": "Track", "artist": "Artist" },
+  "errors": [],
+  "startedAt": "2026-05-13T12:00:00Z",
+  "finishedAt": null
+}
+```
+
+`DELETE /api/jobs/{jobId}`
+
+Requests cancellation.
+
+```json
+{
+  "jobId": "4da8...",
+  "status": "cancelled",
+  "processed": 10,
+  "total": 42,
+  "current": null,
+  "errors": [],
+  "startedAt": "2026-05-13T12:00:00Z",
+  "finishedAt": "2026-05-13T12:01:00Z"
+}
+```
+
+## Taste Library
+
+`GET /api/taste/tracks?language=&minConfidence=&tag=&sort=&limit=&offset=`
+
+Returns paginated UI-shaped analyzed tracks.
+
+```json
+{
+  "tracks": [
+    {
+      "provider": "netease",
+      "id": "111",
+      "title": "Track",
+      "artist": "Artist",
+      "album": null,
+      "coverUrl": null,
+      "language": "en",
+      "dominantTags": ["late-night"],
+      "scores": { "energy": 0.4, "valence": 0.5, "night": 0.8, "coding": 0.6, "skipRisk": 0.2 },
+      "confidence": 0.74,
+      "needsReview": false,
+      "lastAnalyzedAt": "2026-05-13T12:00:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+`GET /api/taste/tracks/{provider}/{id}`
+
+Returns one full `EvidenceTrackAnalysis` object from `data/taste/tracks/<provider>/<id>.json`.
+
+`GET /api/taste/profile`
+
+Returns current runtime taste profile text, rules, and source.
+
+```json
+{
+  "profileText": "# Aftertaste FM Taste Profile\n...",
+  "rules": {
+    "version": 1,
+    "defaultCandidateLimit": 72,
+    "segmentTrackCount": 3,
+    "preferredTags": [],
+    "avoidTags": [],
+    "moodAliases": {},
+    "artistAliases": {}
+  },
+  "source": "data/taste"
+}
+```
 
 ## WebSocket Reservation
 

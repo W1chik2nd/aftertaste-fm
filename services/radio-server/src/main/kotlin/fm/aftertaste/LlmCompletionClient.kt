@@ -1,12 +1,14 @@
 package fm.aftertaste
 
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.isSuccess
 import io.ktor.http.contentType
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -20,6 +22,8 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+
+private const val UPSTREAM_ERROR_SNIPPET_CHARS = 240
 
 class LlmCompletionClient(
     private val config: LlmRuntimeConfig,
@@ -70,7 +74,7 @@ class LlmCompletionClient(
                 put("max_output_tokens", maxTokens)
                 put("temperature", Env.value("LLM_TEMPERATURE")?.toDoubleOrNull() ?: 0.75)
             })
-        }.body()
+        }.checkedBody()
 
     private suspend fun postChatCompletions(
         systemPrompt: String,
@@ -95,7 +99,7 @@ class LlmCompletionClient(
                     })
                 }
             })
-        }.body()
+        }.checkedBody()
 
     private suspend fun postAnthropic(
         systemPrompt: String,
@@ -128,7 +132,17 @@ class LlmCompletionClient(
                 put("max_tokens", maxTokens)
                 put("temperature", Env.value("LLM_TEMPERATURE")?.toDoubleOrNull() ?: 0.75)
             })
-        }.body()
+        }.checkedBody()
+}
+
+class UpstreamApiException(message: String) : RuntimeException(message)
+
+private suspend fun HttpResponse.checkedBody(): String {
+    val text = bodyAsText()
+    if (status.isSuccess()) return text
+    val snippet = text.take(UPSTREAM_ERROR_SNIPPET_CHARS).trim()
+    val detail = if (snippet.isBlank()) "" else ": $snippet"
+    throw UpstreamApiException("LLM upstream failed: ${status.value} ${status.description}$detail")
 }
 
 private fun extractModelText(element: JsonElement, provider: LlmApiProvider): String? =
@@ -139,30 +153,28 @@ private fun extractModelText(element: JsonElement, provider: LlmApiProvider): St
     }
 
 private fun extractChatCompletionText(element: JsonElement): String? =
-    runCatching {
-        element.jsonObject["choices"]
-            ?.jsonArray
-            ?.firstOrNull()
-            ?.jsonObject
-            ?.get("message")
-            ?.jsonObject
-            ?.get("content")
-            ?.jsonPrimitive
-            ?.contentOrNull
-    }.getOrNull()
+    (element as? JsonObject)
+        ?.get("choices")
+        ?.let { it as? JsonArray }
+        ?.firstOrNull()
+        ?.let { it as? JsonObject }
+        ?.get("message")
+        ?.let { it as? JsonObject }
+        ?.get("content")
+        ?.jsonPrimitive
+        ?.contentOrNull
 
 private fun extractAnthropicText(element: JsonElement): String? =
-    runCatching {
-        element.jsonObject["content"]
-            ?.jsonArray
-            ?.firstOrNull { item ->
-                item.jsonObject["type"]?.jsonPrimitive?.contentOrNull == "text"
-            }
-            ?.jsonObject
-            ?.get("text")
-            ?.jsonPrimitive
-            ?.contentOrNull
-    }.getOrNull()
+    (element as? JsonObject)
+        ?.get("content")
+        ?.let { it as? JsonArray }
+        ?.firstOrNull { item ->
+            (item as? JsonObject)?.get("type")?.jsonPrimitive?.contentOrNull == "text"
+        }
+        ?.let { it as? JsonObject }
+        ?.get("text")
+        ?.jsonPrimitive
+        ?.contentOrNull
 
 private fun extractOutputText(element: JsonElement): String? {
     if (element is JsonObject) {

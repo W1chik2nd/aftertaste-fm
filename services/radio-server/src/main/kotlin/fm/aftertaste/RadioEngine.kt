@@ -117,7 +117,11 @@ class RadioEngine(
     }
 
     fun settings(): SettingsResponse =
-        SettingsResponse(weatherLocation = settings.weatherLocation, weather = settings.weather)
+        SettingsResponse(
+            weatherLocation = settings.weatherLocation,
+            weather = settings.weather,
+            integrations = IntegrationStatuses.current()
+        )
 
     suspend fun setWeatherLocation(location: String): SettingsResponse = mutex.withLock {
         val cleaned = location.trim().takeIf { it.isNotBlank() }
@@ -145,7 +149,16 @@ class RadioEngine(
     suspend fun importPlaylist(source: String): ImportPlaylistResponse {
         val id = extractPlaylistId(source)
         val playlist = importProvider.getPlaylist(id)
-        return playlistImportService.save(source = source, playlist = playlist)
+        val lyricsByTrackId = fetchImportLyrics(playlist)
+        return playlistImportService.save(source = source, playlist = playlist, lyricsByTrackId = lyricsByTrackId)
+    }
+
+    private suspend fun fetchImportLyrics(playlist: Playlist): Map<String, String?> {
+        val lyrics = linkedMapOf<String, String?>()
+        for (track in playlist.tracks) {
+            lyrics[track.id] = importProvider.getLyrics(track.id)?.trim()?.takeIf { it.isNotBlank() }
+        }
+        return lyrics
     }
 
     private suspend fun persist() {
@@ -207,8 +220,8 @@ internal fun LlmShowPlan.toShowPlan(candidates: List<Track>, hostConfig: HostCon
     val trackById = candidates.associateBy { it.id }
     val today = java.time.LocalDate.now()
     val showSegments = segments.mapIndexedNotNull { index, segment ->
-        val segmentTracks = segment.trackIds.mapNotNull { trackById[it] }.take(3)
-        if (segmentTracks.size < 3) {
+        val segmentTracks = segment.trackIds.mapNotNull { trackById[it] }.take(SEGMENT_TRACK_COUNT)
+        if (segmentTracks.size < SEGMENT_TRACK_COUNT) {
             null
         } else {
             ShowSegment(
@@ -219,7 +232,7 @@ internal fun LlmShowPlan.toShowPlan(candidates: List<Track>, hostConfig: HostCon
             )
         }
     }
-    if (showSegments.size < 2) return null
+    if (showSegments.size < MIN_LLM_SHOW_SEGMENTS) return null
     return ShowPlan(
         id = "show-${today}-llm-${System.currentTimeMillis()}",
         title = title.ifBlank { "Aftertaste Session" },
@@ -228,3 +241,5 @@ internal fun LlmShowPlan.toShowPlan(candidates: List<Track>, hostConfig: HostCon
         segments = showSegments
     )
 }
+
+private const val MIN_LLM_SHOW_SEGMENTS = 2

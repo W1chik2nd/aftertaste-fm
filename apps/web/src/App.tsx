@@ -1,37 +1,44 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Radio } from "lucide-react";
 import { radioApi } from "./api";
-import type {
-  AgentTrace,
-  HealthResponse,
-  PlanResponse,
-  PlaybackState,
-  SettingsResponse
-} from "./types";
-import { AgentPanel, type ChatMessage } from "./components/AgentPanel";
-import { PlaybackPanel } from "./components/PlaybackPanel";
-import { QueuePanel } from "./components/QueuePanel";
-import { StatusStrip } from "./components/StatusStrip";
+import type { AgentTrace, HealthResponse, PlanResponse, PlaybackState, SettingsResponse } from "./types";
+import { type ChatMessage } from "./components/AgentPanel";
 import { LyricsPanel } from "./components/LyricsPanel";
+import { AppNav, type ViewId } from "./components/AppNav";
+import { ImportView } from "./components/views/ImportView";
+import { LibraryView } from "./components/views/LibraryView";
+import { PlayerView } from "./components/views/PlayerView";
+import { SettingsView } from "./components/views/SettingsView";
 import { usePlayer, emptyPlayback } from "./hooks/usePlayer";
 import { activeLyricLineIndex, parseLyrics } from "./utils/lyrics";
 import { weatherLabel } from "./utils/format";
 
 function App() {
   const player = usePlayer();
-  const { playback, setPlayback, audioRef, voiceRef, mainUrl, voiceUrl,
-    progressSeconds, durationSeconds, setProgressSeconds, setDurationSeconds,
-    advanceToNext, seek, error, setError } = player;
+  const {
+    playback,
+    setPlayback,
+    audioRef,
+    voiceRef,
+    mainUrl,
+    voiceUrl,
+    progressSeconds,
+    durationSeconds,
+    setProgressSeconds,
+    setDurationSeconds,
+    advanceToNext,
+    seek,
+    error,
+    setError
+  } = player;
 
+  const [activeView, setActiveView] = useState<ViewId>("player");
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [adapterStatus, setAdapterStatus] = useState("unknown");
   const [agentTrace, setAgentTrace] = useState<AgentTrace | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: "agent",
-      text: "Tell me what the room needs. I will turn it into a few radio segments, not a song-by-song lecture."
-    }
+    { role: "agent", text: "Tell me what the room needs. I will turn it into a few radio segments, not a song-by-song lecture." }
   ]);
   const [mood, setMood] = useState("");
   const [locationInput, setLocationInput] = useState("");
@@ -59,37 +66,61 @@ function App() {
   );
 
   useEffect(() => {
-    void refreshStatus();
-    void radioApi.clearPlayback().then(setPlayback).catch(() => setPlayback(emptyPlayback));
-    void radioApi.settings().then((value) => {
-      setSettings(value);
-      setLocationInput(value.weatherLocation ?? "");
-    }).catch(() => undefined);
+    void initialize();
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     setLyricsRaw(null);
     setLyricsLoading(false);
-
     if (!lyricTrack?.id) return;
 
-    setLyricsLoading(true);
-    void radioApi.lyrics(lyricTrack.id)
-      .then((response) => {
+    async function loadLyrics(trackId: string) {
+      setLyricsLoading(true);
+      try {
+        const response = await radioApi.lyrics(trackId);
         if (!cancelled) setLyricsRaw(response.lyrics?.trim() || null);
-      })
-      .catch(() => {
+      } catch (event) {
+        console.warn("Could not load lyrics.", event);
         if (!cancelled) setLyricsRaw(null);
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLyricsLoading(false);
-      });
+      }
+    }
 
+    void loadLyrics(lyricTrack.id);
     return () => {
       cancelled = true;
     };
   }, [lyricTrack?.id]);
+
+  async function initialize() {
+    await refreshStatus();
+    await refreshSettings();
+    try {
+      setPlayback(await radioApi.clearPlayback());
+    } catch (event) {
+      console.warn("Could not clear playback on startup.", event);
+      setPlayback(emptyPlayback);
+    }
+  }
+
+  async function refreshSettings() {
+    try {
+      const value = await radioApi.settings();
+      setSettings(value);
+      setLocationInput(value.weatherLocation ?? "");
+    } catch (event) {
+      setError(event instanceof Error ? event.message : "Could not load settings.");
+    }
+  }
+
+  async function refreshStatus() {
+    const [server, adapter] = await Promise.allSettled([radioApi.health(), radioApi.adapterHealth()]);
+    if (server.status === "fulfilled") setHealth(server.value);
+    if (adapter.status === "fulfilled") setAdapterStatus(adapter.value.status ?? "ok");
+    if (adapter.status === "rejected") setAdapterStatus("offline");
+  }
 
   async function run(action: () => Promise<PlaybackState | PlanResponse>) {
     setBusy(true);
@@ -101,10 +132,7 @@ function App() {
         setAgentTrace(result.agentTrace ?? null);
         setMessages((currentMessages) => [
           ...currentMessages,
-          {
-            role: "agent",
-            text: result.agentTrace?.summary ?? `I built ${result.showPlan.title}.`
-          }
+          { role: "agent", text: result.agentTrace?.summary ?? `I built ${result.showPlan.title}.` }
         ]);
       } else {
         setPlayback(result);
@@ -114,17 +142,6 @@ function App() {
     } finally {
       setBusy(false);
     }
-  }
-
-  async function refreshStatus() {
-    const [server, adapter] = await Promise.allSettled([
-      radioApi.health(),
-      radioApi.adapterHealth()
-    ]);
-
-    if (server.status === "fulfilled") setHealth(server.value);
-    if (adapter.status === "fulfilled") setAdapterStatus(adapter.value.status ?? "ok");
-    if (adapter.status === "rejected") setAdapterStatus("offline");
   }
 
   async function saveLocation(event: FormEvent<HTMLFormElement>) {
@@ -169,7 +186,7 @@ function App() {
       const response = await radioApi.agentChat(message);
       setMessages((currentMessages) => [...currentMessages, { role: "agent", text: response.message }]);
       if (response.command && response.command !== "now") {
-        await radioApi.now().then(setPlayback);
+        setPlayback(await radioApi.now());
       }
       if (response.shouldPlan) {
         await run(() => radioApi.chat(message));
@@ -187,8 +204,7 @@ function App() {
   }
 
   const canPlayAudio = Boolean(mainUrl);
-  const displayDuration =
-    durationSeconds || (current?.type === "track" && current.track?.durationMs ? current.track.durationMs / 1000 : 0);
+  const displayDuration = durationSeconds || (current?.type === "track" && current.track?.durationMs ? current.track.durationMs / 1000 : 0);
 
   return (
     <main className="shell">
@@ -225,52 +241,57 @@ function App() {
         </div>
       </header>
 
-      <section className="workspace" aria-label="Radio workspace">
-        <AgentPanel
-          messages={messages}
-          mood={mood}
-          setMood={setMood}
-          busy={busy}
-          onSubmit={submitMood}
-          onGenerate={() => void generateToday()}
-          agentTrace={agentTrace}
-        />
+      <div className="app-frame">
+        <AppNav activeView={activeView} onChange={setActiveView} />
+        {activeView === "player" ? (
+          <PlayerView
+            messages={messages}
+            mood={mood}
+            setMood={setMood}
+            busy={busy}
+            onSubmit={submitMood}
+            onGenerate={() => void generateToday()}
+            agentTrace={agentTrace}
+            playback={playback}
+            statusLabel={statusLabel}
+            current={current}
+            error={error}
+            canPlayAudio={canPlayAudio}
+            progressSeconds={progressSeconds}
+            displayDuration={displayDuration}
+            onSeek={seek}
+            onTogglePlay={() => void run(playback.isPlaying ? radioApi.pause : radioApi.play)}
+            onPrevious={() => void run(radioApi.previous)}
+            onNext={() => void advanceToNext()}
+            upcoming={upcoming}
+          >
+            {current?.track ? (
+              <LyricsPanel
+                lines={lyricLines}
+                activeIndex={activeLyricIndex}
+                loading={lyricsLoading}
+                trackTitle={current.track.title}
+              />
+            ) : null}
+          </PlayerView>
+        ) : null}
+        {activeView === "library" ? <LibraryView onError={setError} /> : null}
+        {activeView === "import" ? <ImportView onError={setError} /> : null}
+        {activeView === "settings" ? (
+          <SettingsView
+            health={health}
+            adapterStatus={adapterStatus}
+            settings={settings}
+            locationInput={locationInput}
+            setLocationInput={setLocationInput}
+            onSaveLocation={saveLocation}
+            onRefreshStatus={() => void refreshStatus()}
+            busy={busy}
+          />
+        ) : null}
+      </div>
 
-        <PlaybackPanel
-          playback={playback}
-          statusLabel={statusLabel}
-          current={current}
-          error={error}
-          canPlayAudio={canPlayAudio}
-          progressSeconds={progressSeconds}
-          displayDuration={displayDuration}
-          onSeek={seek}
-          onTogglePlay={() => void run(playback.isPlaying ? radioApi.pause : radioApi.play)}
-          onPrevious={() => void run(radioApi.previous)}
-          onNext={() => void advanceToNext()}
-        >
-          {current?.track ? (
-            <LyricsPanel
-              lines={lyricLines}
-              activeIndex={activeLyricIndex}
-              loading={lyricsLoading}
-              trackTitle={current.track.title}
-            />
-          ) : null}
-        </PlaybackPanel>
-
-        <QueuePanel queueLength={playback.queue.length} upcoming={upcoming} />
-      </section>
-
-      <StatusStrip
-        health={health}
-        adapterStatus={adapterStatus}
-        settings={settings}
-        locationInput={locationInput}
-        setLocationInput={setLocationInput}
-        onSaveLocation={saveLocation}
-        busy={busy}
-      />
+      {error && activeView !== "player" ? <div className="global-error">{error}</div> : null}
     </main>
   );
 }

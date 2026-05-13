@@ -7,6 +7,16 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
+private const val MIN_SHOW_SEGMENTS = 2
+private const val MAX_LLM_SEGMENTS = 4
+private const val DEFAULT_LLM_CANDIDATE_LIMIT = 30
+private const val MIN_LLM_CANDIDATE_LIMIT = 12
+private const val MAX_LLM_CANDIDATE_LIMIT = 48
+private const val CANDIDATE_TAG_LIMIT = 12
+private const val CANDIDATE_NOTE_CHARS = 180
+private const val TASTE_PROFILE_LINE_LIMIT = 36
+private const val LLM_PLAN_MAX_TOKENS = 1400
+
 interface LlmShowPlanner {
     val mode: String
 
@@ -46,18 +56,17 @@ class ConfiguredLlmShowPlanner(
         tasteProfile: TasteProfile?,
         taggedCandidates: List<TaggedTrack>
     ): LlmShowPlan? {
-        if (candidates.size < 3) return null
-        return runCatching {
-            val outputText = completionClient.complete(
-                systemPrompt(hostConfig),
-                userPrompt(context, candidates, tasteProfile, taggedCandidates),
-                maxTokens = 1400,
-                jsonMode = true,
-                responseSchema = responseFormatSchema(),
-                cacheSystemPrompt = true
-            ) ?: return null
-            json.decodeFromString<LlmShowPlan>(outputText).normalize(candidates)
-        }.getOrNull()
+        if (candidates.size < SEGMENT_TRACK_COUNT) return null
+        val outputText = completionClient.complete(
+            systemPrompt(hostConfig),
+            userPrompt(context, candidates, tasteProfile, taggedCandidates),
+            maxTokens = LLM_PLAN_MAX_TOKENS,
+            jsonMode = true,
+            responseSchema = responseFormatSchema(),
+            cacheSystemPrompt = true
+        ) ?: throw UpstreamApiException("LLM upstream did not return output text.")
+        return json.decodeFromString<LlmShowPlan>(outputText).normalize(candidates)
+            ?: throw UpstreamApiException("LLM show plan did not contain enough valid segments.")
     }
 
     private fun systemPrompt(hostConfig: HostConfig): String =
@@ -94,17 +103,20 @@ class ConfiguredLlmShowPlanner(
         taggedCandidates: List<TaggedTrack>
     ): String {
         val tagsById = taggedCandidates.associateBy { it.id }
-        val candidateLimit = Env.value("LLM_CANDIDATE_LIMIT")?.toIntOrNull()?.coerceIn(12, 48) ?: 30
+        val candidateLimit = Env.value("LLM_CANDIDATE_LIMIT")
+            ?.toIntOrNull()
+            ?.coerceIn(MIN_LLM_CANDIDATE_LIMIT, MAX_LLM_CANDIDATE_LIMIT)
+            ?: DEFAULT_LLM_CANDIDATE_LIMIT
         val candidateText = candidates.take(candidateLimit).joinToString("\n") { track ->
             val tagged = tagsById[track.id]
             val tasteText = tagged?.let {
-                "; language=${it.language}; tags=${it.tags.take(12).joinToString("|")}; energy=${it.energy}; valence=${it.valence}; night=${it.nightScore}; coding=${it.codingScore}; skipRisk=${it.skipRisk}; notes=${it.notes?.take(180) ?: "none"}"
+                "; language=${it.language}; tags=${it.tags.take(CANDIDATE_TAG_LIMIT).joinToString("|")}; energy=${it.energy}; valence=${it.valence}; night=${it.nightScore}; coding=${it.codingScore}; skipRisk=${it.skipRisk}; notes=${it.notes?.take(CANDIDATE_NOTE_CHARS) ?: "none"}"
             } ?: ""
             "- id=${track.id}; title=${track.title}; artist=${track.artist}; album=${track.album ?: "unknown"}; durationMs=${track.durationMs ?: "unknown"}; provider=${track.provider}; stream=${if (track.streamUrl == null) "unavailable" else "available"}$tasteText"
         }
         val tasteProfileText = tasteProfile?.profileText
             ?.lines()
-            ?.take(36)
+            ?.take(TASTE_PROFILE_LINE_LIMIT)
             ?.joinToString("\n")
             ?: "No local profile text loaded."
 
@@ -125,8 +137,8 @@ class ConfiguredLlmShowPlanner(
         Candidate tracks:
         $candidateText
 
-        Build 4 segments. Each segment should contain exactly 3 trackIds when possible.
-        Use 12 unique trackIds when possible. Do not repeat the same track in different chapters.
+        Build $MAX_LLM_SEGMENTS segments. Each segment should contain exactly $SEGMENT_TRACK_COUNT trackIds when possible.
+        Use ${MAX_LLM_SEGMENTS * SEGMENT_TRACK_COUNT} unique trackIds when possible. Do not repeat the same track in different chapters.
         Title segments as chapters, e.g. "Chapter One - ...".
         Put a strong lead song first in each chapter so it can carry the host voice-over.
         Keep the track flow emotionally coherent, but let the variation seed change the exact picks and order across repeated runs.
@@ -185,15 +197,15 @@ class ConfiguredLlmShowPlanner(
             val ids = segment.trackIds
                 .filter { it in validIds && it !in usedIds }
                 .distinct()
-                .take(3)
-            if (ids.size < 3) {
+                .take(SEGMENT_TRACK_COUNT)
+            if (ids.size < SEGMENT_TRACK_COUNT) {
                 null
             } else {
                 usedIds += ids
                 segment.copy(trackIds = ids)
             }
-        }.take(4)
-        if (cleanedSegments.size < 2) return null
+        }.take(MAX_LLM_SEGMENTS)
+        if (cleanedSegments.size < MIN_SHOW_SEGMENTS) return null
         return copy(
             title = title.ifBlank { "Aftertaste Session" },
             rationale = rationale,

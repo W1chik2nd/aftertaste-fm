@@ -93,7 +93,10 @@ class NeteaseMusicProvider(
 
     override suspend fun getTrack(trackId: String): Track? =
         runCatching { client.get("$baseUrl/song/detail?id=${trackId.encodeURLParameter()}").body<Track>() }
-            .getOrNull() ?: fallback?.getTrack(trackId)
+            .getOrElse { error ->
+                logger.warn("netease getTrack failed: {}", error.message)
+                fallback?.getTrack(trackId) ?: throw error
+            }
 
     override suspend fun getStreamUrl(trackId: String): StreamUrl =
         getStreamUrls(listOf(trackId)).firstOrNull()
@@ -113,11 +116,17 @@ class NeteaseMusicProvider(
 
     override suspend fun getLyrics(trackId: String): String? =
         runCatching { client.get("$baseUrl/lyric?id=${trackId.encodeURLParameter()}").body<Map<String, String?>>()["lyrics"] }
-            .getOrNull()
+            .getOrElse { error ->
+                logger.warn("netease getLyrics unavailable for {}: {}", trackId, error.message)
+                null
+            }
 
     override suspend fun getPlaylist(playlistId: String): Playlist =
         runCatching { client.get("$baseUrl/playlist/detail?id=${playlistId.encodeURLParameter()}").body<Playlist>() }
-            .getOrElse { fallback?.getPlaylist(playlistId) ?: throw it }
+            .getOrElse { error ->
+                logger.warn("netease getPlaylist failed: {}", error.message)
+                fallback?.getPlaylist(playlistId) ?: throw error
+            }
 
     override suspend fun getRecommendations(context: RecommendationContext): List<Track> =
         runCatching { client.get("$baseUrl/recommend/songs").body<List<Track>>() }

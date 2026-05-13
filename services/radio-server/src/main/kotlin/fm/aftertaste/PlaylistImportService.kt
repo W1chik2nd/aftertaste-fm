@@ -1,79 +1,179 @@
 package fm.aftertaste
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
+import org.slf4j.LoggerFactory
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
+import kotlin.io.path.name
+
+private const val RAW_IMPORT_SUFFIX = ".raw.json"
+private const val DRAFT_IMPORT_SUFFIX = ".tagged-draft.json"
+private const val LYRICS_IMPORT_SUFFIX = ".lyrics.json"
+private const val INITIAL_SCORE = 0.5
+private const val INITIAL_SKIP_RISK = 0.2
 
 class PlaylistImportService(
     private val importsPath: Path = Env.path("TASTE_IMPORTS_DIR", "data/taste/imports"),
     private val draftsPath: Path = Env.path("TASTE_DRAFTS_DIR", "data/taste/drafts"),
     private val lyricsPath: Path = Env.path("TASTE_LYRICS_DIR", "data/taste/lyrics")
 ) {
-    private val json = Json {
-        prettyPrint = true
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-    }
+    private val logger = LoggerFactory.getLogger(PlaylistImportService::class.java)
+    private val json = HttpClients.sharedJson
 
-    fun save(source: String, playlist: Playlist): ImportPlaylistResponse {
-        val importedAt = OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-        Files.createDirectories(importsPath)
-        Files.createDirectories(draftsPath)
-        Files.createDirectories(lyricsPath)
+    suspend fun save(
+        source: String,
+        playlist: Playlist,
+        lyricsByTrackId: Map<String, String?>
+    ): ImportPlaylistResponse {
+        val importedAt = nowIso()
+        val slug = slugFor(playlist)
+        val rawPath = importsPath.resolve("$slug$RAW_IMPORT_SUFFIX").toAbsolutePath().normalize()
+        val draftPath = draftsPath.resolve("$slug$DRAFT_IMPORT_SUFFIX").toAbsolutePath().normalize()
+        val lyricPath = lyricsPath.resolve("$slug$LYRICS_IMPORT_SUFFIX").toAbsolutePath().normalize()
+        val existingRaw = readRaw(rawPath)
+        val existingDraft = readDraft(draftPath)
+        val existingLyrics = readLyrics(lyricPath)
+        val seen = existingTrackIdentities().toMutableSet()
+        val uniqueTracks = playlist.tracks.filter { track -> seen.add(track.identity()) }
+        val combinedTracks = (existingRaw?.playlist?.tracks.orEmpty() + uniqueTracks)
+            .distinctBy { it.identity() }
+        val uniquePlaylist = playlist.copy(tracks = combinedTracks)
+        val mergedLyricsByTrackId = existingLyrics?.lyricsByTrackId.orEmpty() +
+            uniqueTracks.associate { track -> track.id to lyricsByTrackId[track.id] }
+        val ignoredDuplicateCount = playlist.tracks.size - uniqueTracks.size
 
-        val slug = safeSlug("${playlist.provider}-${playlist.id}-${playlist.name}")
-        val rawPath = importsPath.resolve("$slug.raw.json").toAbsolutePath().normalize()
-        val draftPath = draftsPath.resolve("$slug.tagged-draft.json").toAbsolutePath().normalize()
-        val lyricPath = lyricsPath.resolve("$slug.lyrics.json").toAbsolutePath().normalize()
-
-        Files.writeString(
-            rawPath,
-            json.encodeToString(
-                ImportedPlaylistFile(
-                    importedAt = importedAt,
-                    source = source,
-                    playlist = playlist
-                )
-            )
+        val raw = ImportedPlaylistFile(importedAt = importedAt, source = source, playlist = uniquePlaylist)
+        val draft = TaggedPlaylistDraft(
+            importedAt = importedAt,
+            source = source,
+            playlistId = uniquePlaylist.id,
+            playlistName = uniquePlaylist.name,
+            tracks = existingDraft?.tracks.orEmpty() + uniqueTracks.map { it.toTaggedDraft() }
+        )
+        val lyrics = ImportedLyricsFile(
+            importedAt = importedAt,
+            source = source,
+            playlistId = uniquePlaylist.id,
+            playlistName = uniquePlaylist.name,
+            lyricsByTrackId = mergedLyricsByTrackId
         )
 
-        Files.writeString(
-            draftPath,
-            json.encodeToString(
-                TaggedPlaylistDraft(
-                    importedAt = importedAt,
-                    source = source,
-                    playlistId = playlist.id,
-                    playlistName = playlist.name,
-                    tracks = playlist.tracks.map { it.toTaggedDraft() }
-                )
-            )
-        )
-
-        Files.writeString(
-            lyricPath,
-            json.encodeToString(
-                ImportedLyricsFile(
-                    importedAt = importedAt,
-                    source = source,
-                    playlistId = playlist.id,
-                    playlistName = playlist.name,
-                    lyricsByTrackId = playlist.tracks.associate { it.id to null }
-                )
-            )
-        )
+        AtomicFiles.writeString(rawPath, json.encodeToString(raw) + "\n")
+        AtomicFiles.writeString(draftPath, json.encodeToString(draft) + "\n")
+        AtomicFiles.writeString(lyricPath, json.encodeToString(lyrics) + "\n")
 
         return ImportPlaylistResponse(
-            playlist = playlist,
+            slug = slug,
+            playlistId = uniquePlaylist.id,
+            name = uniquePlaylist.name,
             importedAt = importedAt,
+            trackCount = uniqueTracks.size,
+            ignoredDuplicateCount = ignoredDuplicateCount,
+            lyricsFetched = uniqueTracks.count { mergedLyricsByTrackId[it.id] != null },
+            lyricsMissing = uniqueTracks.count { mergedLyricsByTrackId[it.id] == null },
             rawPath = rawPath.toString(),
             taggedDraftPath = draftPath.toString(),
             lyricsPath = lyricPath.toString(),
+            nextStep = "Analyze this import to write per-track evidence files."
+        )
+    }
+
+    suspend fun list(evidence: EvidenceLibraryService): List<ImportRecord> = withContext(Dispatchers.IO) {
+        val analyses = evidence.list().associateBy { "${it.provider}:${it.id}" }
+        rawImportFiles().mapNotNull { path ->
+            readRaw(path)?.toRecord(slugFromRawPath(path), analyses)
+        }.sortedByDescending { it.importedAt }
+    }
+
+    suspend fun detail(slug: String, evidence: EvidenceLibraryService): ImportDetail? = withContext(Dispatchers.IO) {
+        val raw = readRaw(importsPath.resolve("$slug$RAW_IMPORT_SUFFIX")) ?: return@withContext null
+        val analyses = evidence.list().associateBy { "${it.provider}:${it.id}" }
+        val record = raw.toRecord(slug, analyses)
+        ImportDetail(
+            slug = record.slug,
+            playlistId = record.playlistId,
+            name = record.name,
+            trackCount = record.trackCount,
+            importedAt = record.importedAt,
+            analyzedAt = record.analyzedAt,
+            status = record.status,
+            analyzedTrackCount = record.analyzedTrackCount,
+            pendingAnalysisCount = record.pendingAnalysisCount,
+            tracks = raw.playlist.tracks.map { it.toSummary() }
+        )
+    }
+
+    suspend fun draft(slug: String): TaggedPlaylistDraft? = withContext(Dispatchers.IO) {
+        readDraft(draftsPath.resolve("$slug$DRAFT_IMPORT_SUFFIX"))
+    }
+
+    suspend fun lyrics(slug: String): ImportedLyricsFile? = withContext(Dispatchers.IO) {
+        readLyrics(lyricsPath.resolve("$slug$LYRICS_IMPORT_SUFFIX"))
+    }
+
+    private fun rawImportFiles(): List<Path> {
+        if (!Files.exists(importsPath)) return emptyList()
+        return Files.list(importsPath).use { stream ->
+            stream
+                .filter { Files.isRegularFile(it) && it.name.endsWith(RAW_IMPORT_SUFFIX) }
+                .toList()
+        }
+    }
+
+    private fun existingTrackIdentities(): Set<TrackIdentity> =
+        rawImportFiles()
+            .mapNotNull { readRaw(it) }
+            .flatMap { imported -> imported.playlist.tracks.map { it.identity() } }
+            .toSet()
+
+    private fun readRaw(path: Path): ImportedPlaylistFile? =
+        readFile(path) { content -> json.decodeFromString<ImportedPlaylistFile>(content) }
+
+    private fun readDraft(path: Path): TaggedPlaylistDraft? =
+        readFile(path) { content -> json.decodeFromString<TaggedPlaylistDraft>(content) }
+
+    private fun readLyrics(path: Path): ImportedLyricsFile? =
+        readFile(path) { content -> json.decodeFromString<ImportedLyricsFile>(content) }
+
+    private fun <T> readFile(path: Path, decode: (String) -> T): T? {
+        if (!Files.exists(path)) return null
+        return try {
+            decode(Files.readString(path))
+        } catch (cause: SerializationException) {
+            logger.warn("Skipping invalid import file {}: {}", path, cause.message)
+            null
+        } catch (cause: IOException) {
+            logger.warn("Skipping unreadable import file {}: {}", path, cause.message)
+            null
+        }
+    }
+
+    private fun ImportedPlaylistFile.toRecord(
+        slug: String,
+        analyses: Map<String, EvidenceTrackAnalysis>
+    ): ImportRecord {
+        val analyzed = playlist.tracks.mapNotNull { analyses["${it.provider}:${it.id}"] }
+        val status = when {
+            analyzed.isEmpty() -> "imported"
+            analyzed.size == playlist.tracks.size -> "analyzed"
+            else -> "partial"
+        }
+        return ImportRecord(
+            slug = slug,
+            playlistId = playlist.id,
+            name = playlist.name,
             trackCount = playlist.tracks.size,
-            nextStep = "Fetch lyrics into the lyrics file, then generate evidence-based analysis into data/taste/tracks.evidence.json. No runtime LLM analysis was triggered by this import."
+            importedAt = importedAt,
+            analyzedAt = analyzed.mapNotNull { it.lastAnalyzedAt }.maxOrNull(),
+            status = status,
+            analyzedTrackCount = analyzed.size,
+            pendingAnalysisCount = playlist.tracks.size - analyzed.size
         )
     }
 
@@ -88,13 +188,15 @@ class PlaylistImportService(
             coverUrl = coverUrl,
             tags = emptyList(),
             language = guessLanguage(title, artist),
-            energy = 0.5,
-            valence = 0.5,
-            nightScore = 0.5,
-            codingScore = 0.5,
-            skipRisk = 0.2,
-            notes = "TODO: manually tag this imported track."
+            energy = INITIAL_SCORE,
+            valence = INITIAL_SCORE,
+            nightScore = INITIAL_SCORE,
+            codingScore = INITIAL_SCORE,
+            skipRisk = INITIAL_SKIP_RISK
         )
+
+    private fun Track.toSummary(): TrackSummary =
+        TrackSummary(provider, id, title, artist, album, durationMs, coverUrl)
 
     private fun guessLanguage(title: String, artist: String): String {
         val text = title + artist
@@ -107,25 +209,11 @@ class PlaylistImportService(
         }
     }
 
-    private fun isCjkUnified(ch: Char): Boolean =
-        ch in '㐀'..'䶿' || ch in '一'..'鿿' || ch in '豈'..'﫿'
+    private fun slugFor(playlist: Playlist): String =
+        safeFileStem("${playlist.provider}-${playlist.id}-${playlist.name}")
 
-    private fun safeSlug(value: String): String {
-        val builder = StringBuilder(value.length)
-        var lastDash = false
-        value.lowercase().forEach { ch ->
-            val keep = ch.isDigit() || (ch in 'a'..'z') ||
-                ch in '぀'..'ゟ' || ch in '゠'..'ヿ' || // kana
-                ch in '가'..'힯' ||                              // hangul syllables
-                isCjkUnified(ch)
-            if (keep) {
-                builder.append(ch)
-                lastDash = false
-            } else if (!lastDash) {
-                builder.append('-')
-                lastDash = true
-            }
-        }
-        return builder.toString().trim('-').take(96).ifBlank { "playlist" }
-    }
+    private fun slugFromRawPath(path: Path): String =
+        path.name.removeSuffix(RAW_IMPORT_SUFFIX)
+
+    private fun nowIso(): String = OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
 }
