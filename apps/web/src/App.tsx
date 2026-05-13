@@ -5,12 +5,13 @@ import type { AgentTrace, HealthResponse, PlanResponse, PlaybackState, SettingsR
 import { type ChatMessage } from "./components/AgentPanel";
 import { AppAudio } from "./components/AppAudio";
 import { LyricsPanel } from "./components/LyricsPanel";
-import { AppNav, type ViewId } from "./components/AppNav";
+import { AppNav } from "./components/AppNav";
 import { ImportView } from "./components/views/ImportView";
 import { LibraryView } from "./components/views/LibraryView";
 import { PlayerView } from "./components/views/PlayerView";
 import { SettingsView } from "./components/views/SettingsView";
 import { usePlayer, emptyPlayback } from "./hooks/usePlayer";
+import { useStoredView } from "./hooks/useStoredView";
 import { activeLyricLineIndex, parseLyrics } from "./utils/lyrics";
 import { weatherLabel } from "./utils/format";
 
@@ -33,7 +34,7 @@ function App() {
     setError
   } = player;
 
-  const [activeView, setActiveView] = useState<ViewId>("player");
+  const [activeView, setActiveView] = useStoredView();
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [adapterStatus, setAdapterStatus] = useState("unknown");
@@ -100,9 +101,9 @@ function App() {
     await refreshStatus();
     await refreshSettings();
     try {
-      setPlayback(await radioApi.clearPlayback());
+      setPlayback(await radioApi.now());
     } catch (event) {
-      console.warn("Could not clear playback on startup.", event);
+      console.warn("Could not restore playback on startup.", event);
       setPlayback(emptyPlayback);
     }
   }
