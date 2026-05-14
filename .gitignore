@@ -23,6 +23,3 @@ cache/tts/*
 
 apps/**/node_modules/
 apps/**/dist/
-
-# Local UI preview screenshots (not tracked)
-reskin-preview.png
