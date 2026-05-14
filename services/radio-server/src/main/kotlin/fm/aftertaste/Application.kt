@@ -42,7 +42,20 @@ private const val DEFAULT_WS_STREAM_INTERVAL_MS = 2000L
 fun main() {
     val port = Env.value("PORT")?.toIntOrNull() ?: DEFAULT_PORT
     val host = Env.value("RADIO_BIND_HOST") ?: DEFAULT_BIND_HOST
-    embeddedServer(Netty, port = port, host = host) {
+    embeddedServer(
+        Netty,
+        port = port,
+        host = host,
+        configure = {
+            // The /media/stream proxy holds a response open for the whole track,
+            // and the browser stops reading whenever its buffer is full — so the
+            // response goes write-idle for long stretches by design. Netty's
+            // default 10s write timeout would treat that as a dead client and
+            // truncate playback mid-song. 0 disables it; the client closing its
+            // own connection is what ends a streaming response.
+            responseWriteTimeoutSeconds = 0
+        }
+    ) {
         module()
     }.start(wait = true)
 }

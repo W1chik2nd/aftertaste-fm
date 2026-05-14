@@ -57,6 +57,12 @@ Returns:
 
 Each returns the updated now-playing state.
 
+## Media
+
+`GET /media/stream?url=<encoded upstream url>`
+
+Same-origin audio proxy. The web player routes external provider stream URLs (e.g. Netease CDN) through this endpoint so the `<audio>` element stays same-origin and the Web Audio analyser can read a real spectrum instead of silence. The route only fetches stream URLs already present in the current playback queue, so it is not an open proxy. It forwards the client `Range` header and the upstream `Content-Range` / `Accept-Ranges` / `Content-Length` so seeking still works. Server-local URLs (TTS, mock streams) are served directly and do not go through this route.
+
 ## Settings And Weather
 
 `GET /api/settings`

@@ -17,7 +17,7 @@ The product rule: the host speaks between groups of songs, not before each song.
 ## Where things live
 
 - Kotlin packages are flat under `fm.aftertaste`. Files split by concern: `RadioEngine`, `PlaybackQueue`, `ShowPlanner`, `RadioAgent`, `HostVoiceService`, `LlmShowPlanner`, `LlmCompletionClient`, `LlmRuntimeConfig`, `AgentChatService`, `IntentExtractor`, `MusicProvider`, `TasteProfileRepository`, `PlaylistImportService`, `WeatherService`, `StateStore`, `HttpClients`, `Models`, `Env`, `Application`.
-- Web is split across `App.tsx` (orchestrator), `hooks/usePlayer.ts`, `components/{AgentPanel,PlaybackPanel,QueuePanel,LyricsPanel,StatusStrip}.tsx`, `utils/{format,lyrics,media}.ts`.
+- Web is split across `App.tsx` (orchestrator), `hooks/{usePlayer,useLyrics,useAudioSpectrum}.ts`, `components/{AgentDock,AgentTracePanel,NowPlayingStage,QueueList,ClockHero,CollapsiblePanel,LyricsPanel,StatusStrip,AppAudio,AppNav}.tsx` plus `components/views/*`, `utils/{format,lyrics,media,network}.ts`.
 - Docs: `docs/architecture.md`, `docs/api.md`, `docs/roadmap.md`.
 - Private data: `data/taste/` (gitignored). Public schema: `data/taste.example/`.
 

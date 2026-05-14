@@ -1,6 +1,8 @@
 package fm.aftertaste
 
 import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.header
 import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
@@ -22,6 +24,13 @@ import java.net.URI
 import java.net.URISyntaxException
 
 private val mediaProxyLogger = LoggerFactory.getLogger("fm.aftertaste.MediaProxy")
+
+/**
+ * Idle socket timeout for an upstream audio fetch. Generous enough to outlast a
+ * full browser buffer (which can idle the socket for minutes on a long track),
+ * but finite so a client that drops without closing still frees the connection.
+ */
+private const val STREAM_SOCKET_TIMEOUT_MS = 10 * 60 * 1000L
 
 /**
  * Same-origin audio proxy: `GET /media/stream?url=<encoded upstream url>`.
@@ -61,6 +70,18 @@ fun Route.registerMediaProxyRoutes(engine: RadioEngine) {
         var responseStarted = false
         try {
             HttpClients.shared.prepareGet(rawUrl) {
+                // The shared client caps a request at 2 minutes and a socket at
+                // 2 minutes idle. An audio stream legitimately outlives both: it
+                // stays open for the whole track and goes idle whenever the
+                // browser's buffer is full. The request timeout is lifted so a
+                // long track is never cut mid-song; the socket timeout is only
+                // widened, not removed, so a client that drops without closing
+                // (network loss, killed tab) still releases the upstream
+                // connection instead of leaking it forever.
+                timeout {
+                    requestTimeoutMillis = HttpTimeout.INFINITE_TIMEOUT_MS
+                    socketTimeoutMillis = STREAM_SOCKET_TIMEOUT_MS
+                }
                 call.request.headers[HttpHeaders.Range]?.let { header(HttpHeaders.Range, it) }
             }.execute { upstream ->
                 val contentType = upstream.contentType() ?: ContentType.Application.OctetStream

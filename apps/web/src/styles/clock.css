@@ -113,7 +113,7 @@
 /* Real spectrum: bar heights come from inline style, driven by the analyser. */
 .clock-hero-wave.live span {
   background: var(--text-secondary);
-  transition: height 90ms linear;
+  transition: height 60ms linear;
 }
 
 .clock-hero-wave span:nth-child(3n) {

@@ -15,6 +15,10 @@ type Props = {
 /**
  * The integrated agent console. Conversation is visible by default, while the
  * header can collapse it when the listener wants a quieter rail.
+ *
+ * This rolls its own disclosure rather than reusing CollapsiblePanel: only the
+ * conversation history collapses, while the composer and generate button stay
+ * pinned below it — CollapsiblePanel would hide all of its children together.
  */
 export function AgentDock({ messages, mood, setMood, busy, onSubmit, onGenerate }: Props) {
   const [historyOpen, setHistoryOpen] = useState(true);

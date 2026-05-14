@@ -27,11 +27,10 @@ export function CollapsiblePanel({ title, meta, defaultOpen = false, children }:
         <span className="collapsible-title">{title}</span>
         {meta != null ? <span className="collapsible-meta">{meta}</span> : null}
       </button>
-      {open ? (
-        <div className="collapsible-body" id={regionId}>
-          {children}
-        </div>
-      ) : null}
+      {/* Kept mounted (just hidden) so aria-controls always points at a real element. */}
+      <div className="collapsible-body" id={regionId} hidden={!open}>
+        {children}
+      </div>
     </section>
   );
 }

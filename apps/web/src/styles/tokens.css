@@ -40,10 +40,12 @@
   /* Accents — strictly scoped */
   --accent-live: #4ade80;
   --accent-glow: #6d5dfc;
+  /* Same colour as --accent-glow, as raw channels — for rgba() with a custom alpha. */
+  --accent-glow-rgb: 109, 93, 252;
 
   /* Glow */
-  --glow-panel: 0 0 60px -12px rgba(109, 93, 252, 0.45), 0 0 1px rgba(109, 93, 252, 0.6);
-  --glow-focus: 0 0 0 3px rgba(109, 93, 252, 0.35);
+  --glow-panel: 0 0 60px -12px rgba(var(--accent-glow-rgb), 0.45), 0 0 1px rgba(var(--accent-glow-rgb), 0.6);
+  --glow-focus: 0 0 0 3px rgba(var(--accent-glow-rgb), 0.35);
 
   /* Spacing scale — 4px grid */
   --space-1: 4px;

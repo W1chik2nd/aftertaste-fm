@@ -145,7 +145,12 @@ function Transport({
         <button type="button" className="icon-button" onClick={onPrevious} title="Previous">
           <ChevronLeft size={23} />
         </button>
-        <button type="button" className="play-button" onClick={onTogglePlay} title={isPlaying ? "Pause" : "Play"}>
+        <button
+          type="button"
+          className={`play-button ${isPlaying ? "is-playing" : ""}`}
+          onClick={onTogglePlay}
+          title={isPlaying ? "Pause" : "Play"}
+        >
           {isPlaying ? <Pause size={26} /> : <Play size={26} />}
         </button>
         <button type="button" className="icon-button" onClick={onNext} title="Next">
