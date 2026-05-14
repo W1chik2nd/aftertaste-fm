@@ -276,7 +276,9 @@
   line-height: 1.4;
 }
 
-.queue-empty {
+.queue-list li.queue-empty {
+  display: block;
+  border-top: 0;
   color: var(--text-faint);
   font-size: 0.86rem;
   padding: var(--space-3) 0;
