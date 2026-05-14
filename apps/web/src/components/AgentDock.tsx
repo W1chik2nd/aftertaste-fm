@@ -13,12 +13,11 @@ type Props = {
 };
 
 /**
- * The integrated chat. A persistent composer + generate action sits under the
- * stage; the conversation history opens into a capped, internally-scrolling
- * panel so the page can never grow with it.
+ * The integrated agent console. Conversation is visible by default, while the
+ * header can collapse it when the listener wants a quieter rail.
  */
 export function AgentDock({ messages, mood, setMood, busy, onSubmit, onGenerate }: Props) {
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(true);
   const exchangeCount = messages.filter((message) => message.role === "user").length;
 
   return (
@@ -30,7 +29,7 @@ export function AgentDock({ messages, mood, setMood, busy, onSubmit, onGenerate 
         onClick={() => setHistoryOpen((value) => !value)}
       >
         <MessageCircle size={15} aria-hidden="true" />
-        <span>Radio Agent</span>
+        <span>Aftertaste Agent</span>
         <span className="agent-dock-count">{exchangeCount ? `${exchangeCount} sent` : "ready"}</span>
         <ChevronDown className="collapsible-chevron" size={15} aria-hidden="true" />
       </button>
@@ -59,13 +58,6 @@ export function AgentDock({ messages, mood, setMood, busy, onSubmit, onGenerate 
 }
 
 function Conversation({ messages }: { messages: ChatMessage[] }) {
-  if (messages.length <= 1) {
-    return (
-      <div className="conversation conversation-empty" aria-label="Agent conversation">
-        <p>Describe the room. Aftertaste turns it into a hosted radio segment, then lets the music run.</p>
-      </div>
-    );
-  }
   return (
     <div className="conversation" aria-label="Agent conversation">
       {messages.map((message, index) => (

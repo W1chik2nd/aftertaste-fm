@@ -26,19 +26,24 @@
   text-transform: uppercase;
 }
 
-.now-header h2,
+.now-header h2 {
+  margin: 6px 0 4px;
+  max-width: 840px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: clamp(1.2rem, 1.7vw, 1.55rem);
+  line-height: 1.12;
+  color: var(--text-primary);
+}
+
 .track-readout h3,
 .empty-current h3 {
   margin: 6px 0 4px;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: clamp(1.25rem, 2.2vw, 1.85rem);
+  font-size: clamp(1.55rem, 2.8vw, 2.6rem);
   line-height: 1.1;
   color: var(--text-primary);
-}
-
-.now-header h2 {
-  max-width: 840px;
 }
 
 .now-header p,
@@ -112,7 +117,7 @@
 }
 
 .stage-cover {
-  width: min(100%, 280px);
+  width: min(100%, 320px);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.46);
 }
 

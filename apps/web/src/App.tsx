@@ -220,6 +220,7 @@ function App() {
           <Radio size={18} />
           <span>Aftertaste FM</span>
         </div>
+        <AppNav activeView={activeView} onChange={setActiveView} />
         <div className="topbar-status">
           <span>{health?.provider ?? "mock"} provider</span>
           <span>{playback.hostLanguage}</span>
@@ -227,7 +228,6 @@ function App() {
       </header>
 
       <div className="app-frame">
-        <AppNav activeView={activeView} onChange={setActiveView} />
         {activeView === "player" ? (
           <PlayerView
             messages={messages}

@@ -4,7 +4,7 @@
 
 .player-view {
   display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 2.1fr);
+  grid-template-columns: minmax(300px, 0.92fr) minmax(0, 2.08fr);
   gap: var(--space-4);
   align-items: start;
 }
@@ -28,7 +28,7 @@
 .now-playing-stage,
 .agent-dock,
 .collapsible {
-  background: var(--bg-elevated);
+  background: rgba(21, 22, 26, 0.88);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-card);
 }
@@ -52,6 +52,8 @@
   flex-direction: column;
   gap: var(--space-3);
   padding: clamp(14px, 2vw, 20px);
+  background-image: linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+  background-size: 100% 32px;
 }
 
 /* Composer + generate anchor to the bottom of the rail; the conversation, when

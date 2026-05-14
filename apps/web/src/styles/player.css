@@ -24,13 +24,15 @@
 
 .conversation {
   display: grid;
-  gap: var(--space-3);
-  max-height: 320px;
+  gap: var(--space-2);
+  max-height: 280px;
   overflow-y: auto;
   padding: var(--space-3);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-card);
-  background: var(--bg-inset);
+  background-color: var(--bg-inset);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 11px 11px;
 }
 
 .conversation-empty {
@@ -46,16 +48,18 @@
 }
 
 .bubble {
-  max-width: 88%;
-  padding: var(--space-3);
+  max-width: 92%;
+  padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-card);
   border: 1px solid var(--line-soft);
-  background: var(--bg-panel);
+  background: rgba(21, 22, 26, 0.86);
 }
 
 .bubble.user {
   justify-self: end;
+  max-width: 70%;
   border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .bubble p {
@@ -77,18 +81,22 @@
   text-transform: uppercase;
 }
 
+.bubble.agent {
+  justify-self: start;
+}
+
 /* --- Composer + generate --- */
 
 .composer {
-  min-height: 56px;
+  min-height: 52px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
   padding: 7px 7px 7px var(--space-4);
   border: 1px solid var(--line-soft);
-  border-radius: var(--radius-card);
-  background: var(--bg-inset);
+  border-radius: var(--radius-button);
+  background: #050608;
 }
 
 .composer:focus-within {
@@ -139,7 +147,7 @@
 }
 
 .generate-button {
-  min-height: 44px;
+  min-height: 42px;
   gap: var(--space-2);
   padding: 0 var(--space-4);
   border-radius: var(--radius-button);
@@ -151,7 +159,7 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   font-size: 0.78rem;
-  width: fit-content;
+  width: 100%;
   transition: background 120ms ease;
 }
 
