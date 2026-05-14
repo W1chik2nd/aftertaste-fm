@@ -2,17 +2,18 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Radio } from "lucide-react";
 import { radioApi } from "./api";
 import type { AgentTrace, HealthResponse, PlanResponse, PlaybackState, SettingsResponse } from "./types";
-import { type ChatMessage } from "./components/AgentPanel";
+import { type ChatMessage } from "./components/AgentDock";
 import { AppAudio } from "./components/AppAudio";
 import { LyricsPanel } from "./components/LyricsPanel";
-import { AppNav } from "./components/AppNav";
+import { StatusStrip } from "./components/StatusStrip";
+import { AppNav, type ViewId } from "./components/AppNav";
 import { ImportView } from "./components/views/ImportView";
 import { LibraryView } from "./components/views/LibraryView";
 import { PlayerView } from "./components/views/PlayerView";
 import { SettingsView } from "./components/views/SettingsView";
 import { usePlayer, emptyPlayback } from "./hooks/usePlayer";
-import { useStoredView } from "./hooks/useStoredView";
 import { useLyrics } from "./hooks/useLyrics";
+import { useAudioSpectrum } from "./hooks/useAudioSpectrum";
 import { weatherLabel } from "./utils/format";
 
 function App() {
@@ -34,7 +35,7 @@ function App() {
     setError
   } = player;
 
-  const [activeView, setActiveView] = useStoredView();
+  const [activeView, setActiveView] = useState<ViewId>("player");
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [adapterStatus, setAdapterStatus] = useState("unknown");
@@ -61,6 +62,7 @@ function App() {
     [playback.currentIndex, playback.queue]
   );
   const { lyricLines, activeLyricIndex, lyricsLoading } = useLyrics(lyricTrack?.id, progressSeconds);
+  const spectrumLevels = useAudioSpectrum(audioRef, playback.isPlaying);
 
   useEffect(() => {
     void initialize();
@@ -198,9 +200,11 @@ function App() {
   }
 
   const displayDuration = durationSeconds || (current?.type === "track" && current.track?.durationMs ? current.track.durationMs / 1000 : 0);
+  const onAir = playback.isPlaying || playback.currentItem != null;
 
   return (
     <main className="shell">
+      <div className="device-panel">
       <AppAudio
         audioRef={audioRef}
         voiceRef={voiceRef}
@@ -216,6 +220,7 @@ function App() {
           <Radio size={18} />
           <span>Aftertaste FM</span>
         </div>
+        <AppNav activeView={activeView} onChange={setActiveView} />
         <div className="topbar-status">
           <span>{health?.provider ?? "mock"} provider</span>
           <span>{playback.hostLanguage}</span>
@@ -223,7 +228,6 @@ function App() {
       </header>
 
       <div className="app-frame">
-        <AppNav activeView={activeView} onChange={setActiveView} />
         {activeView === "player" ? (
           <PlayerView
             messages={messages}
@@ -233,6 +237,8 @@ function App() {
             onSubmit={submitMood}
             onGenerate={() => void generateToday()}
             agentTrace={agentTrace}
+            onAir={onAir}
+            spectrumLevels={spectrumLevels}
             playback={playback}
             statusLabel={statusLabel}
             current={current}
@@ -282,6 +288,9 @@ function App() {
       </div>
 
       {error && activeView !== "player" ? <div className="global-error">{error}</div> : null}
+
+      <StatusStrip />
+      </div>
     </main>
   );
 }

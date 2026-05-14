@@ -1,0 +1,64 @@
+/* Self-hosted fonts — see public/fonts/. No CDN: PWA offline + privacy. */
+@font-face {
+  font-family: "DotGothic16";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/dotgothic16-latin.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-latin.woff2") format("woff2");
+}
+
+:root {
+  /* Fonts */
+  --font-display: "DotGothic16", "Courier New", monospace;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-text: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+
+  /* Background layers — brightening from outside in */
+  --bg-void: #000000;
+  --bg-panel: #0c0d10;
+  --bg-elevated: #15161a;
+  --bg-inset: #08090b;
+
+  /* Lines */
+  --line-soft: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
+
+  /* Text */
+  --text-primary: #e8e8ea;
+  --text-secondary: #8a8b90;
+  --text-faint: #4e4f54;
+  --text-danger: #f0a3a3;
+
+  /* Accents — strictly scoped */
+  --accent-live: #4ade80;
+  --accent-glow: #6d5dfc;
+  /* Same colour as --accent-glow, as raw channels — for rgba() with a custom alpha. */
+  --accent-glow-rgb: 109, 93, 252;
+
+  /* Glow */
+  --glow-panel: 0 0 60px -12px rgba(var(--accent-glow-rgb), 0.45), 0 0 1px rgba(var(--accent-glow-rgb), 0.6);
+  --glow-focus: 0 0 0 3px rgba(var(--accent-glow-rgb), 0.35);
+
+  /* Spacing scale — 4px grid */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  /* Radii */
+  --radius-panel: 16px;
+  --radius-card: 8px;
+  --radius-button: 6px;
+  --radius-inset: 10px;
+}

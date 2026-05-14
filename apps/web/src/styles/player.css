@@ -1,151 +1,110 @@
-.eyebrow,
-.section-heading span,
+/* Shared player-surface typography + the chat / trace internals.
+   Layout for the player-centric stack lives in player-view.css. */
+
 .host-readout span,
 .track-readout span,
 .lyrics-panel > span {
   margin: 0;
-  color: #6e6e73;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
-.workspace {
-  display: grid;
-  grid-template-columns: minmax(370px, 1.05fr) minmax(330px, 0.95fr);
-  grid-template-areas: "agent playback" "agent queue";
-  gap: 14px;
-  min-height: calc(100vh - 96px);
-}
-
-.agent-panel,
-.playback-panel,
-.queue-panel {
-  background: #ffffff;
-  border: 1px solid #d2d2d7;
-  border-radius: 8px;
-}
-
-.agent-panel,
-.playback-panel {
-  padding: clamp(20px, 3vw, 32px);
-}
-
-.agent-panel {
-  grid-area: agent;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  min-height: 0;
-}
-
-.playback-panel {
-  grid-area: playback;
-  display: flex;
-  flex-direction: column;
-}
-
-.queue-panel {
-  grid-area: queue;
-  padding: 22px;
-  min-height: 0;
-}
-
-.agent-intro {
-  display: grid;
-  gap: 8px;
-}
-
-.agent-intro h1,
-.view-heading h1 {
-  margin: 0;
-  font-size: clamp(2.1rem, 4.7vw, 4.7rem);
-  line-height: 0.98;
-  letter-spacing: 0;
-}
-
-.agent-intro p:last-child {
-  max-width: 560px;
-  margin: 0;
-  color: #515154;
-  font-size: clamp(1rem, 1.4vw, 1.16rem);
-  line-height: 1.36;
-}
-
-.section-heading,
 .now-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
-.model-note,
-.trace-signals div {
-  border: 1px solid #d2d2d7;
-  border-radius: 8px;
-  background: #fbfbfd;
-}
-
-.model-note {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
-  padding: 12px;
-  color: #515154;
-}
-
-.model-note p,
-.bubble p,
-.trace-columns ul {
-  margin: 0;
-  line-height: 1.45;
-}
-
-.conversation,
-.trace-panel {
-  display: grid;
-  gap: 12px;
-}
+/* --- Chat conversation --- */
 
 .conversation {
-  min-height: 156px;
-  align-content: end;
+  display: grid;
+  gap: var(--space-2);
+  max-height: 280px;
+  overflow-y: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-card);
+  background-color: var(--bg-inset);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 11px 11px;
+}
+
+.conversation-empty {
+  align-content: center;
+}
+
+.conversation-empty p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-family: var(--font-text);
+  font-size: 0.88rem;
+  line-height: 1.5;
 }
 
 .bubble {
-  max-width: 88%;
-  padding: 12px 14px;
-  border-radius: 8px;
-  background: #f5f5f7;
+  max-width: 92%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line-soft);
+  background: rgba(21, 22, 26, 0.86);
 }
 
 .bubble.user {
   justify-self: end;
-  background: #0071e3;
-  color: #ffffff;
+  max-width: 70%;
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.04);
 }
 
-.bubble span,
-.trace-signals span {
-  display: block;
-  color: inherit;
-  opacity: 0.72;
-  font-size: 0.78rem;
-  font-weight: 800;
+.bubble p {
+  margin: 0;
+  font-family: var(--font-text);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-primary);
 }
+
+.bubble span {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.bubble.agent {
+  justify-self: start;
+}
+
+/* --- Composer + generate --- */
 
 .composer {
-  min-height: 56px;
+  min-height: 52px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  padding: 7px 7px 7px 16px;
-  border: 1px solid #d2d2d7;
-  border-radius: 8px;
-  background: #fff;
+  gap: var(--space-3);
+  padding: 7px 7px 7px var(--space-4);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-button);
+  background: #050608;
+}
+
+.composer:focus-within {
+  border-color: var(--line-strong);
+}
+
+.composer svg {
+  color: var(--text-faint);
 }
 
 .composer input {
@@ -153,6 +112,13 @@
   border: 0;
   outline: 0;
   background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+}
+
+.composer input::placeholder {
+  color: var(--text-faint);
 }
 
 .composer button,
@@ -162,38 +128,56 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 0;
 }
 
-.composer button,
-.icon-button {
+.composer button {
   width: 42px;
   height: 42px;
-  border-radius: 8px;
-  background: #1d1d1f;
-  color: #ffffff;
+  border-radius: var(--radius-button);
+  border: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--text-secondary);
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.composer button:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--line-strong);
+  background: var(--bg-panel);
 }
 
 .generate-button {
-  min-height: 44px;
-  gap: 9px;
-  padding: 0 16px;
-  border-radius: 8px;
-  background: #0071e3;
-  color: #ffffff;
-  font-weight: 800;
-  width: fit-content;
+  min-height: 42px;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-button);
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+  width: 100%;
+  transition: background 120ms ease;
 }
 
+.generate-button:hover:not(:disabled) {
+  background: var(--bg-inset);
+}
+
+/* --- Agent trace (inside the collapsible) --- */
+
 .trace-panel {
-  padding-top: 6px;
-  margin-top: auto;
+  display: grid;
+  gap: var(--space-3);
 }
 
 .trace-signals,
 .trace-columns {
   display: grid;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .trace-signals {
@@ -202,13 +186,30 @@
 
 .trace-signals div {
   min-height: 78px;
-  padding: 12px;
+  padding: var(--space-3);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-card);
+  background: var(--bg-inset);
+}
+
+.trace-signals span {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .trace-signals strong {
   display: block;
-  margin-top: 5px;
+  margin-top: var(--space-1);
   overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text-primary);
 }
 
 .trace-columns {
@@ -216,12 +217,33 @@
 }
 
 .trace-columns h3 {
-  margin: 0 0 8px;
-  font-size: 0.96rem;
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
 .trace-columns ul,
 .queue-list {
+  margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.trace-columns li {
+  color: var(--text-secondary);
+  font-family: var(--font-text);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  padding: 3px 0;
+}
+
+@media (max-width: 640px) {
+  .trace-signals,
+  .trace-columns {
+    grid-template-columns: 1fr;
+  }
 }

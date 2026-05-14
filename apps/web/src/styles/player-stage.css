@@ -1,0 +1,217 @@
+.stage-backdrop-art {
+  position: absolute;
+  inset: auto -8% -26% auto;
+  width: min(46vw, 560px);
+  height: min(46vw, 560px);
+  object-fit: cover;
+  opacity: 0.18;
+  filter: blur(34px) saturate(1.2);
+  transform: scale(1.08);
+  pointer-events: none;
+}
+
+.now-header,
+.stage-content,
+.transport {
+  position: relative;
+  z-index: 1;
+}
+
+.now-header span {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.now-header h2 {
+  margin: 6px 0 4px;
+  max-width: 840px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: clamp(1.2rem, 1.7vw, 1.55rem);
+  line-height: 1.12;
+  color: var(--text-primary);
+}
+
+.track-readout h3,
+.empty-current h3 {
+  margin: 6px 0 4px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: clamp(1.55rem, 2.8vw, 2.6rem);
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+
+.now-header p,
+.track-readout p,
+.empty-current p,
+.queue-list small {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+}
+
+.live-dot {
+  width: 10px;
+  height: 10px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex: 0 0 auto;
+}
+
+.live-dot.active {
+  background: var(--accent-live);
+  animation: live-dot-breathe 2s ease-in-out infinite;
+}
+
+.host-readout,
+.track-readout,
+.empty-current {
+  margin: 0;
+}
+
+.host-readout p,
+.host-readout blockquote {
+  margin: 12px 0 0;
+  font-family: var(--font-text);
+  font-size: clamp(1.1rem, 2.2vw, 1.7rem);
+  line-height: 1.25;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.host-readout blockquote,
+.chapter-readout blockquote {
+  border: 0;
+  padding: 0;
+}
+
+.track-readout {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.8fr) minmax(0, 1fr);
+  gap: clamp(20px, 3vw, 34px);
+  align-items: center;
+}
+
+.stage-content {
+  margin: clamp(16px, 3vw, 28px) 0;
+}
+
+.stage-after {
+  position: relative;
+  z-index: 1;
+  margin-top: var(--space-4);
+}
+
+.cover-wrap {
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line-soft);
+  background: var(--bg-inset);
+}
+
+.stage-cover {
+  width: min(100%, 320px);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.46);
+}
+
+.cover-wrap img,
+.cover-fallback {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover-fallback {
+  background: var(--bg-inset);
+}
+
+.chapter-readout blockquote {
+  margin: 14px 0 0;
+  max-height: 132px;
+  overflow: auto;
+  font-family: var(--font-text);
+  font-size: clamp(0.95rem, 1.3vw, 1.1rem);
+  line-height: 1.45;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.track-copy {
+  min-width: 0;
+}
+
+.track-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.track-readout small {
+  display: inline-flex;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lyrics-panel {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.lyrics-scroll {
+  height: clamp(180px, 26vh, 310px);
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  padding: 44px 4px;
+  mask-image: linear-gradient(transparent, black 22%, black 78%, transparent);
+}
+
+.lyrics-scroll p,
+.lyrics-muted {
+  margin: 0;
+  color: var(--text-faint);
+  font-family: var(--font-text);
+  font-size: clamp(0.95rem, 1.3vw, 1.1rem);
+  line-height: 1.45;
+  font-weight: 500;
+  transition: color 200ms ease, transform 200ms ease;
+}
+
+.lyrics-scroll p.active {
+  color: var(--text-primary);
+  transform: translateX(4px);
+}
+
+@media (max-width: 640px) {
+  .track-readout {
+    grid-template-columns: 1fr;
+  }
+
+  .cover-wrap {
+    max-width: 240px;
+  }
+
+  .stage-cover {
+    width: min(100%, 240px);
+  }
+}
+
+@container (max-width: 760px) {
+  .lyrics-scroll {
+    height: clamp(110px, 18vh, 180px);
+    padding-block: 26px;
+  }
+}

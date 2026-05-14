@@ -1,25 +1,19 @@
 import type { QueueItem } from "../types";
 
 type Props = {
-  queueLength: number;
   upcoming: QueueItem[];
 };
 
-export function QueuePanel({ queueLength, upcoming }: Props) {
+/** The upcoming queue rows. The header/count is owned by the surrounding CollapsiblePanel. */
+export function QueueList({ upcoming }: Props) {
   return (
-    <aside className="queue-panel" aria-label="Queue">
-      <div className="section-heading">
-        <span>Queue</span>
-        <strong>{queueLength} items</strong>
-      </div>
-      <ol className="queue-list">
-        {upcoming.length ? (
-          upcoming.map((item) => <QueueRow key={item.id} item={item} />)
-        ) : (
-          <li className="queue-empty">No upcoming items yet.</li>
-        )}
-      </ol>
-    </aside>
+    <ol className="queue-list">
+      {upcoming.length ? (
+        upcoming.map((item) => <QueueRow key={item.id} item={item} />)
+      ) : (
+        <li className="queue-empty">No upcoming items yet.</li>
+      )}
+    </ol>
   );
 }
 

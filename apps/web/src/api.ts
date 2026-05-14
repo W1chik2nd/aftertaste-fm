@@ -36,6 +36,18 @@ export function resolveMediaUrl(url?: string | null) {
   return `${API_BASE}${url.startsWith("/") ? url : `/${url}`}`;
 }
 
+/**
+ * URL for the main <audio> element to play a track stream. Cross-origin CDN
+ * streams (Netease) are routed through the radio-server proxy so the element
+ * stays same-origin — that is what lets the Web Audio analyser read real
+ * samples instead of silence. Relative/server-local URLs pass straight through.
+ */
+export function streamMediaUrl(url?: string | null) {
+  if (!url) return undefined;
+  if (/^https?:\/\//i.test(url)) return `${API_BASE}/media/stream?url=${encodeURIComponent(url)}`;
+  return `${API_BASE}${url.startsWith("/") ? url : `/${url}`}`;
+}
+
 class ApiError extends Error {
   constructor(public status: number, public statusText: string, public body: string, message: string) {
     super(message);

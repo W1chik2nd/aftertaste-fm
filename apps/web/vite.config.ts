@@ -2,8 +2,8 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
-const THEME_COLOR = "#ffffff";
-const BACKGROUND_COLOR = "#ffffff";
+const THEME_COLOR = "#000000";
+const BACKGROUND_COLOR = "#000000";
 const API_NETWORK_TIMEOUT_SECONDS = 5;
 const API_CACHE_MAX_ENTRIES = 50;
 const API_CACHE_MAX_AGE_SECONDS = 86_400;
@@ -61,6 +61,7 @@ export default defineConfig({
       workbox: {
         navigateFallback: "index.html",
         cleanupOutdatedCaches: true,
+        globPatterns: ["**/*.{js,css,html,woff2,png,svg,webmanifest}"],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith("/api/"),

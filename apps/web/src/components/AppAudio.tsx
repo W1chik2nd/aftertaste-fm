@@ -28,6 +28,9 @@ export function AppAudio({
     <>
       <audio
         ref={audioRef}
+        // Same-origin proxy + anonymous CORS keep the element untainted, so the
+        // Web Audio analyser can read a real spectrum off it.
+        crossOrigin="anonymous"
         onLoadedMetadata={(event) => setDurationSeconds(event.currentTarget.duration || 0)}
         onTimeUpdate={(event) => setProgressSeconds(event.currentTarget.currentTime || 0)}
         onError={() => onError(isBrowserOffline() ? OFFLINE_MEDIA_MESSAGE : STREAM_LOAD_ERROR)}
