@@ -80,6 +80,7 @@ export type WeatherSnapshot = {
 export type SettingsResponse = {
   weatherLocation?: string | null;
   weather?: WeatherSnapshot | null;
+  hostLanguage: string;
   integrations: IntegrationStatus[];
 };
 

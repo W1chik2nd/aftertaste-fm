@@ -18,9 +18,14 @@ class AgentChatService(
     private val completionClient = config?.let { LlmCompletionClient(it, json) }
 
     suspend fun reply(message: String, playback: PlaybackState, hostConfig: HostConfig): AgentChatResponse {
-        val fallbackDecision = fallbackReply(message, playback)
+        val chinese = isChineseHostLanguage(hostConfig.hostLanguage)
+        val fallbackDecision = fallbackReply(message, playback, chinese)
         val fallbackMessage = fallbackDecision.message
-            ?: "Tell me what the room needs, and I can build a hosted radio chapter around it."
+            ?: if (chinese) {
+                "告诉我此刻房间需要什么，我可以围绕它做一段有主播的电台节目。"
+            } else {
+                "Tell me what the room needs, and I can build a hosted radio chapter around it."
+            }
         val runtimeConfig = config ?: return AgentChatResponse(
             message = fallbackMessage,
             shouldPlan = fallbackDecision.shouldPlan,
@@ -155,14 +160,19 @@ class AgentChatService(
         })
     }
 
-    private fun fallbackReply(message: String, playback: PlaybackState): AgentIntentDecision {
-        val decision = explicitCommandDecision(message, playback)
+    private fun fallbackReply(message: String, playback: PlaybackState, chinese: Boolean): AgentIntentDecision {
+        val decision = explicitCommandDecision(message, playback, chinese)
         if (decision.message != null) return decision
 
-        val reply = if (playback.currentItem != null) {
-            "I am here with the current chapter. Tell me if you want the music softer, brighter, more English, less sad, or just ask about what is playing."
-        } else {
-            "Tell me what the room needs, and I can build a hosted radio chapter around it."
+        val reply = when {
+            playback.currentItem != null && chinese ->
+                "我陪着现在这一章。想让音乐更柔、更亮、更安静，或者只是想问问在放什么，都可以告诉我。"
+            playback.currentItem != null ->
+                "I am here with the current chapter. Tell me if you want the music softer, brighter, more English, less sad, or just ask about what is playing."
+            chinese ->
+                "告诉我此刻房间需要什么，我可以围绕它做一段有主播的电台节目。"
+            else ->
+                "Tell me what the room needs, and I can build a hosted radio chapter around it."
         }
         return decision.copy(message = reply)
     }
@@ -195,26 +205,31 @@ internal val playbackCommands = setOf("next", "previous", "pause", "play", "now"
  * server-side mirror of the same idea: tight, single-phrase matching so deterministic playback controls
  * still work when the LLM is unavailable. Keep this small — broader intent should go through the LLM.
  */
-internal fun explicitCommandDecision(message: String, playback: PlaybackState): AgentIntentDecision {
+internal fun explicitCommandDecision(
+    message: String,
+    playback: PlaybackState,
+    chinese: Boolean = false
+): AgentIntentDecision {
     val text = message.trim().lowercase()
     if (isExplicitCommand(text, listOf("next", "skip", "skip this", "下一首", "换歌", "跳过"))) {
-        return AgentIntentDecision(message = "Skipping to the next item.", command = "next")
+        return AgentIntentDecision(message = if (chinese) "切到下一首。" else "Skipping to the next item.", command = "next")
     }
     if (isExplicitCommand(text, listOf("previous", "prev", "back", "上一首", "回上一首"))) {
-        return AgentIntentDecision(message = "Going back one item.", command = "previous")
+        return AgentIntentDecision(message = if (chinese) "回到上一首。" else "Going back one item.", command = "previous")
     }
     if (isExplicitCommand(text, listOf("pause", "stop", "暂停", "停一下"))) {
-        return AgentIntentDecision(message = "Paused.", command = "pause")
+        return AgentIntentDecision(message = if (chinese) "已暂停。" else "Paused.", command = "pause")
     }
     if (isExplicitCommand(text, listOf("play", "resume", "continue", "继续", "播放"))) {
-        return AgentIntentDecision(message = "Playing.", command = "play")
+        return AgentIntentDecision(message = if (chinese) "继续播放。" else "Playing.", command = "play")
     }
     if (isExplicitCommand(text, listOf("what's playing", "what is playing", "now playing", "这是什么", "现在放什么", "正在放什么"))) {
         val track = playback.currentItem?.track
-        val now = if (track != null) {
-            "On air: ${track.title} by ${track.artist}."
-        } else {
-            "Nothing is on air yet. Generate a show first."
+        val now = when {
+            track != null && chinese -> "正在播放：${track.title} —— ${track.artist}。"
+            track != null -> "On air: ${track.title} by ${track.artist}."
+            chinese -> "现在还没有节目，先生成一档吧。"
+            else -> "Nothing is on air yet. Generate a show first."
         }
         return AgentIntentDecision(message = now, command = "now")
     }

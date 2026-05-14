@@ -20,28 +20,21 @@ skip for identical scripts. Configured in `.env` (key currently commented for de
 completions, and Anthropic. Deterministic `ShowPlanner` retained as the no-LLM-key path
 per AGENTS.md §1.
 
+### v0.5 — Chinese host
+Host language switchable at runtime from Settings (`POST /api/settings/host-language`,
+persisted in `app_state`). `LlmShowPlanner` carries a Mandarin-specific writing directive
+with negative ad-copy examples; deterministic planning keeps queue shape without authoring
+host copy; `RadioAgent` trace and `AgentChatService` fallback copy follow the language.
+Independent Chinese Fish credentials via `FISH_API_KEY_ZH` / `FISH_VOICE_ID_ZH`,
+falling back to the default key when unset. Named per-daypart Chinese styles and mixed-language
+shows are still open (see *Later*).
+
 ---
 
 ## Next directions
 
-Four directions on the table. Each has a one-paragraph assessment so the trade-off is
+Three directions on the table. Each has a one-paragraph assessment so the trade-off is
 visible before the work starts.
-
-### A. Chinese podcast host
-
-**Why now:** plumbing is already there. `hostLanguage` and `routing.language` are typed-through;
-Fish supports Chinese voices; `AgentChatService` already returns replies in `hostConfig.hostLanguage`.
-
-**What's missing:**
-- Strip the "write natural English even when tracks are Chinese" override from
-  `LlmShowPlanner.systemPrompt` and `HostVoiceService.generateHostScript`.
-- Pick a Fish Chinese voice; document `FISH_VOICE_ID_ZH` in `.env.example`.
-- Calibrate style — "calm late-night radio" doesn't translate one-to-one. Probably 2–3 named
-  styles in config (e.g. `calm-late-night-cn`, `morning-commute-cn`).
-- Likely a few negative example phrases in the prompt so the model doesn't fall into overly
-  literary 书面 Chinese.
-
-**Effort:** low. **Risk:** low.
 
 ### B. PWA shell
 
@@ -106,14 +99,13 @@ under `apps/<provider>-adapter/`. The hard part is per-platform auth and licensi
 
 ## Suggested sequence
 
-1. **A — Chinese host.** Cheapest win, unblocks "my radio in my language".
-2. **B — PWA shell.** 1–2 days of work that turns the existing web app into something
+1. **B — PWA shell.** 1–2 days of work that turns the existing web app into something
    installable, with lock-screen controls and offline replay. Single biggest jump in
    perceived quality for the smallest cost.
-3. **C — Frontend visual redesign.** Once B has shipped, the app already feels like an app —
+2. **C — Frontend visual redesign.** Once B has shipped, the app already feels like an app —
    then the visual work has a clear stage. Time-box this; it's the easiest item to overrun.
-4. **D first half — local files + CSV import.** Provider depth without auth burden.
-5. **D second half — Spotify / Apple Music.** Last; the auth + licensing tax is real.
+3. **D first half — local files + CSV import.** Provider depth without auth burden.
+4. **D second half — Spotify / Apple Music.** Last; the auth + licensing tax is real.
 
 Native macOS/iOS is deferred to *Later* below — revisit only when the PWA's limits start
 biting (AirPlay, Shortcuts, Widgets, reliable iOS background play).

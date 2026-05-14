@@ -74,7 +74,7 @@ class ConfiguredLlmShowPlanner(
         Create a radio show from ONLY the provided candidate track ids.
         Each segment is a chapter. The first trackId is the chapter lead: the host will speak over that track's opening, then the rest of the chapter plays without interruption.
         Do not introduce every song. Talk once per chapter, not before every track.
-        Host language must be ${hostConfig.hostLanguage}. For v0.1, write natural English even when tracks are Chinese.
+        ${languageDirective(hostConfig.hostLanguage)}
         Style: ${hostConfig.hostStyle}. Specific, companionable, never oily, never encyclopedic.
         Host scripts should feel like a real radio break for the current station mode, not product copy.
 
@@ -85,7 +85,7 @@ class ConfiguredLlmShowPlanner(
         4. Name the emotional thread of the previous or coming songs in plain language.
         5. Land on the lead track and artist as the next thing we are hearing.
         6. If evidence supports it, briefly describe what the song seems to carry. If not, speak from mood and listening context rather than facts.
-        7. End naturally with "Now, [artist], [title]."
+        7. End naturally by naming the lead artist and title, in the host language, as the closing line.
 
         Across the hostScripts, avoid repeating the same first 8 words, the same paragraph structure, or the same metaphors.
         Never use the sentence "The city always seems to get a little more honest around this hour" or close variants.
@@ -199,16 +199,17 @@ class ConfiguredLlmShowPlanner(
                 .filter { it in validIds && it !in usedIds }
                 .distinct()
                 .take(SEGMENT_TRACK_COUNT)
-            if (ids.size < SEGMENT_TRACK_COUNT) {
+            val hostScript = segment.hostScript.trim()
+            if (ids.size < SEGMENT_TRACK_COUNT || hostScript.isBlank()) {
                 null
             } else {
                 usedIds += ids
-                segment.copy(trackIds = ids)
+                segment.copy(trackIds = ids, title = segment.title.trim(), hostScript = hostScript)
             }
         }.take(MAX_LLM_SEGMENTS)
         if (cleanedSegments.size < MIN_SHOW_SEGMENTS) return null
         return copy(
-            title = title.ifBlank { "Aftertaste Session" },
+            title = title,
             rationale = rationale,
             segments = cleanedSegments
         )
@@ -249,6 +250,26 @@ private fun routingSummary(routing: RoutingIntent): String {
         routing.artists.takeIf { it.isNotEmpty() }?.let { "artists=${it.joinToString("|")}" }
     ).joinToString(", ")
 }
+
+/**
+ * Per-language writing instruction for the host scripts. English and Mandarin diverge enough —
+ * cadence, register, what counts as "ad copy" — that one translated rule is not enough.
+ */
+private fun languageDirective(hostLanguage: String): String =
+    if (isChineseHostLanguage(hostLanguage)) {
+        """
+        Host language must be $hostLanguage. Write every hostScript in natural, spoken Mandarin Chinese, even when track titles or artist names are in English.
+        Sound like a real late-night radio host talking to one listener: colloquial, warm, unhurried. Avoid stiff, literary 书面语.
+        Do not write like a press release or an essay. Avoid ad-copy openers such as "在这个特别的夜晚", "让我们一起", "接下来为您带来", "用音乐点亮".
+        The script is read aloud by TTS: use short sentences and end them with 。frequently. Do not chain long clauses with commas — short sentences give the voice natural pauses and emotion instead of a flat reading-machine cadence.
+        Keep track titles and artist names in their original language; do not translate them. Close with "接下来，[artist]，《[title]》。".
+        """.trimIndent()
+    } else {
+        """
+        Host language must be $hostLanguage. Write natural English even when the tracks are Chinese or mixed.
+        Close with "Now, [artist], [title].".
+        """.trimIndent()
+    }
 
 private fun catalogConstraint(routing: RoutingIntent): String =
     when (routing.language) {

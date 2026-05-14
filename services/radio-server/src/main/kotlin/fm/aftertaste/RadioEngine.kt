@@ -15,7 +15,7 @@ class RadioEngine(
     hostVoiceService: HostVoiceService = HostVoiceService()
 ) {
     private val agent = RadioAgent()
-    private val planner = ShowPlanner(hostConfig, hostVoiceService)
+    private val planner = ShowPlanner(hostConfig)
     private val llmPlanner = ConfiguredLlmShowPlanner.fromEnvironment()
     private val queue = PlaybackQueue(hostConfig, hostVoiceService)
     private val mutex = Mutex()
@@ -29,13 +29,23 @@ class RadioEngine(
         queue.restore(restored.playback, restored.showPlan)
     }
 
+    /**
+     * The host config the next plan should use: the env `HOST_LANGUAGE` default, overridden by the
+     * runtime language chosen in Settings when one is set. Style still comes from the station daypart.
+     */
+    fun activeHostConfig(): HostConfig =
+        settings.hostLanguage?.takeIf { it.isNotBlank() }
+            ?.let { hostConfig.copy(hostLanguage = it) }
+            ?: hostConfig
+
     suspend fun planToday(mood: String? = null, routingIntent: RoutingIntent? = null): PlanResponse = mutex.withLock {
         refreshWeatherForPlanning()
         val tasteProfile = tasteRepository.load()
         val catalogArtists = tasteProfile.tracks.map { it.artist }.distinct()
-        val baseContext = agent.buildContext(mood, hostConfig, tasteProfile.rules, catalogArtists, routingIntent)
+        val activeHost = activeHostConfig()
+        val baseContext = agent.buildContext(mood, activeHost, tasteProfile.rules, catalogArtists, routingIntent)
         val context = withMemory(withWeather(baseContext))
-        val stationHostConfig = hostConfig.copy(hostStyle = context.stationStyle?.hostStyle ?: hostConfig.hostStyle)
+        val stationHostConfig = activeHost.copy(hostStyle = context.stationStyle?.hostStyle ?: activeHost.hostStyle)
         store.rememberMessage("user", mood ?: "Generate today's show.")
         val candidateSelection = candidateSelector.select(context, tasteProfile)
         val tracks = if (candidateSelection.tracks.isNotEmpty()) {
@@ -50,7 +60,7 @@ class RadioEngine(
             tasteProfile = candidateSelection.profile,
             taggedCandidates = candidateSelection.tracks
         )
-        activePlan = hydratePlanStreams(llmPlan?.toShowPlan(tracks, stationHostConfig) ?: planner.plan(tracks, context, stationHostConfig))
+        activePlan = hydratePlanStreams(llmPlan?.toShowPlan(tracks, stationHostConfig) ?: planner.plan(tracks, stationHostConfig))
         queue.load(activePlan!!)
         store.rememberPlan(activePlan!!)
         persist()
@@ -121,8 +131,16 @@ class RadioEngine(
         SettingsResponse(
             weatherLocation = settings.weatherLocation,
             weather = settings.weather,
+            hostLanguage = settings.hostLanguage ?: hostConfig.hostLanguage,
             integrations = IntegrationStatuses.current()
         )
+
+    suspend fun setHostLanguage(hostLanguage: String): SettingsResponse = mutex.withLock {
+        val cleaned = requireSupportedHostLanguage(hostLanguage)
+        settings = settings.copy(hostLanguage = cleaned)
+        persist()
+        settings()
+    }
 
     suspend fun setWeatherLocation(location: String): SettingsResponse = mutex.withLock {
         val cleaned = location.trim().takeIf { it.isNotBlank() }
@@ -211,7 +229,7 @@ internal fun LlmShowPlan.toShowPlan(candidates: List<Track>, hostConfig: HostCon
         } else {
             ShowSegment(
                 id = "seg-${today}-llm-$index",
-                title = segment.title.ifBlank { "Segment ${index + 1}" },
+                title = segment.title,
                 hostScript = segment.hostScript,
                 tracks = segmentTracks
             )
@@ -220,7 +238,7 @@ internal fun LlmShowPlan.toShowPlan(candidates: List<Track>, hostConfig: HostCon
     if (showSegments.size < MIN_SHOW_SEGMENTS) return null
     return ShowPlan(
         id = "show-${today}-llm-${System.currentTimeMillis()}",
-        title = title.ifBlank { "Aftertaste Session" },
+        title = title,
         generatedAt = java.time.OffsetDateTime.now().format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME),
         hostConfig = hostConfig,
         segments = showSegments
