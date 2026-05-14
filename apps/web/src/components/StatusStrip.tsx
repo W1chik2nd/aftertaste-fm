@@ -22,13 +22,14 @@ export function StatusStrip({
   onSaveLocation,
   busy
 }: Props) {
+  const hostLanguage = settings?.hostLanguage ?? health?.hostConfig.hostLanguage ?? "en-US";
   return (
     <section className="settings-strip" aria-label="Settings and status">
       <StatusCell icon={<Server size={18} />} label="radio-server" value={health?.status ?? "unknown"} />
       <StatusCell icon={<Wifi size={18} />} label="provider" value={health?.provider ?? "mock"} />
       <StatusCell icon={<RefreshCw size={18} />} label="netease-adapter" value={adapterStatus} />
       <StatusCell icon={<CloudSun size={18} />} label="weather" value={weatherLabel(settings)} />
-      <StatusCell icon={<Languages size={18} />} label="host language" value="English" />
+      <StatusCell icon={<Languages size={18} />} label="host language" value={hostLanguage} />
       <form className="location-cell" onSubmit={onSaveLocation}>
         <CloudSun size={18} />
         <label htmlFor="weather-location">location</label>

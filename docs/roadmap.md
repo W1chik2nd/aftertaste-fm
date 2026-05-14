@@ -23,9 +23,9 @@ per AGENTS.md §1.
 ### v0.5 — Chinese host
 Host language switchable at runtime from Settings (`POST /api/settings/host-language`,
 persisted in `app_state`). `LlmShowPlanner` carries a Mandarin-specific writing directive
-with negative ad-copy examples; the deterministic planner uses `HostScriptTemplates` with a
-separate Chinese template set; `RadioAgent` trace and `AgentChatService` fallback copy follow
-the language. Independent Chinese Fish credentials via `FISH_API_KEY_ZH` / `FISH_VOICE_ID_ZH`,
+with negative ad-copy examples; deterministic planning keeps queue shape without authoring
+host copy; `RadioAgent` trace and `AgentChatService` fallback copy follow the language.
+Independent Chinese Fish credentials via `FISH_API_KEY_ZH` / `FISH_VOICE_ID_ZH`,
 falling back to the default key when unset. Named per-daypart Chinese styles and mixed-language
 shows are still open (see *Later*).
 

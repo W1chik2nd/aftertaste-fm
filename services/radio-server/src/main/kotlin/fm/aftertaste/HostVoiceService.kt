@@ -44,7 +44,7 @@ class HostVoiceService(
     private val fishTopP = Env.value("FISH_TTS_TOP_P")?.toDoubleOrNull() ?: 0.7
     private val fishSpeed = Env.value("FISH_TTS_SPEED")?.toDoubleOrNull() ?: 1.0
     // Mandarin at speed 1.0 reads rushed and flat; the Chinese host is slower by default.
-    private val fishSpeedZh = Env.value("FISH_TTS_SPEED_ZH")?.toDoubleOrNull() ?: 0.85
+    private val fishSpeedZh = Env.value("FISH_TTS_SPEED_ZH")?.toDoubleOrNull() ?: 0.95
     private val fishVolume = Env.value("FISH_TTS_VOLUME")?.toDoubleOrNull() ?: 4.0
     private val fishSampleRate = Env.value("FISH_TTS_SAMPLE_RATE")?.toIntOrNull() ?: 44100
     private val fishMp3Bitrate = Env.value("FISH_TTS_MP3_BITRATE")?.toIntOrNull() ?: 128
@@ -73,8 +73,8 @@ class HostVoiceService(
 
     suspend fun synthesize(script: String, hostLanguage: String = "en-US"): HostVoiceAsset {
         val profile = voiceProfileFor(hostLanguage)
-        val digest = cacheKey(script, profile.voiceId)
-        if (profile.apiKey.isNullOrBlank()) {
+        val digest = cacheKey(script, profile)
+        if (script.isBlank() || profile.apiKey.isNullOrBlank()) {
             return HostVoiceAsset(script = script, audioUrl = null, cacheKey = digest)
         }
 
@@ -154,9 +154,9 @@ class HostVoiceService(
         }
     }
 
-    private fun cacheKey(script: String, voiceId: String?): String =
+    private fun cacheKey(script: String, profile: VoiceProfile): String =
         MessageDigest.getInstance("SHA-256")
-            .digest("$fishModel|${voiceId.orEmpty()}|$fishFormat|$script".toByteArray())
+            .digest("$fishModel|${profile.voiceId.orEmpty()}|$fishFormat|${profile.speed}|$script".toByteArray())
             .joinToString("") { "%02x".format(it) }
             .take(HOST_CACHE_KEY_CHARS)
 

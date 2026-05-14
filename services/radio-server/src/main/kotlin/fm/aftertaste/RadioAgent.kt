@@ -62,7 +62,9 @@ class RadioAgent {
                 "Prefer low-to-medium energy continuity.",
                 "Treat the first track in each segment as the chapter lead.",
                 "Speak over the lead track opening, then let the remaining tracks run without interruption.",
-                if (isChineseHostLanguage(plan.hostConfig.hostLanguage)) {
+                if (plannerMode == "mock-radio-agent") {
+                    "No LLM host copy was authored; deterministic planning only kept the segment and queue shape."
+                } else if (isChineseHostLanguage(plan.hostConfig.hostLanguage)) {
                     "Write host copy in Mandarin Chinese, keeping track and artist names in their original language."
                 } else {
                     "Use English host copy even when the tracks are Chinese or mixed."

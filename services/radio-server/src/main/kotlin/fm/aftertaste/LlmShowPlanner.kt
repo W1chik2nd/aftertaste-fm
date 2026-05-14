@@ -199,16 +199,17 @@ class ConfiguredLlmShowPlanner(
                 .filter { it in validIds && it !in usedIds }
                 .distinct()
                 .take(SEGMENT_TRACK_COUNT)
-            if (ids.size < SEGMENT_TRACK_COUNT) {
+            val hostScript = segment.hostScript.trim()
+            if (ids.size < SEGMENT_TRACK_COUNT || hostScript.isBlank()) {
                 null
             } else {
                 usedIds += ids
-                segment.copy(trackIds = ids)
+                segment.copy(trackIds = ids, title = segment.title.trim(), hostScript = hostScript)
             }
         }.take(MAX_LLM_SEGMENTS)
         if (cleanedSegments.size < MIN_SHOW_SEGMENTS) return null
         return copy(
-            title = title.ifBlank { "Aftertaste Session" },
+            title = title,
             rationale = rationale,
             segments = cleanedSegments
         )

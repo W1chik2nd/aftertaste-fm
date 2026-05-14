@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 data class RecommendationContext(
     val mood: String? = null,
     val localTime: String? = null,
-    val hostLanguage: String = "en-US",
+    val hostLanguage: String = DEFAULT_HOST_LANGUAGE,
     val intent: String = "daily_show",
     val routing: RoutingIntent = RoutingIntent(),
     val memory: ContextMemory = ContextMemory(),
@@ -85,7 +85,7 @@ data class HostLanguageRequest(val hostLanguage: String)
 data class SettingsResponse(
     val weatherLocation: String? = null,
     val weather: WeatherSnapshot? = null,
-    val hostLanguage: String = "en-US",
+    val hostLanguage: String = DEFAULT_HOST_LANGUAGE,
     val integrations: List<IntegrationStatus> = emptyList()
 )
 
@@ -137,7 +137,7 @@ data class PlaybackState(
     val isPlaying: Boolean = false,
     val progressMs: Long = 0,
     val durationMs: Long? = null,
-    val hostLanguage: String = "en-US"
+    val hostLanguage: String = DEFAULT_HOST_LANGUAGE
 )
 
 @Serializable

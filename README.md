@@ -383,8 +383,8 @@ The Kotlin `gradlew` script downloads a local Gradle distribution into the repo 
   `FISH_VOICE_ID`：可选的 Fish Audio 声音/模型 id；建议配置以获得稳定音色。
 - `FISH_API_KEY_ZH` / `FISH_VOICE_ID_ZH`: optional independent Fish credentials for the Chinese host. When blank, the Chinese host reuses `FISH_API_KEY` / `FISH_VOICE_ID`.<br>
   `FISH_API_KEY_ZH` / `FISH_VOICE_ID_ZH`：可选，中文主持人独立的 Fish 凭据；留空时中文主持人会复用 `FISH_API_KEY` / `FISH_VOICE_ID`。
-- `FISH_TTS_SPEED_ZH`: Chinese host speech speed, defaults to `0.85`. Mandarin at `1.0` reads rushed; lower it for a calmer, more emotional delivery.<br>
-  `FISH_TTS_SPEED_ZH`：中文主持人语速，默认 `0.85`；中文在 `1.0` 会显得赶，调低会更平静、更有情感。
+- `FISH_TTS_SPEED_ZH`: Chinese host speech speed, defaults to `0.95`. Mandarin at `1.0` reads rushed; lower it for a calmer, more emotional delivery.<br>
+  `FISH_TTS_SPEED_ZH`：中文主持人语速，默认 `0.95`；中文在 `1.0` 会显得赶，调低会更平静、更有情感。
 - `FISH_TTS_MODEL`: defaults to `s2-pro`.<br>
   `FISH_TTS_MODEL`：默认 `s2-pro`。
 - `FISH_TTS_FORMAT`: defaults to `mp3`.<br>
@@ -414,8 +414,8 @@ Music playback should come from legal platform streams where possible.<br>
 The default host config is `en-US`, host name `Aftertaste`, style `calm late-night radio`, and `between_segments` speech. `HOST_LANGUAGE` sets the default; the Settings view switches it at runtime between `en-US` and `zh-CN`, and the choice is persisted server-side.<br>
 默认主持人配置为 `en-US`、主持人名 `Aftertaste`、风格 `calm late-night radio`，并采用 `between_segments` 的说话方式。`HOST_LANGUAGE` 设置默认值；Settings 页面可在 `en-US` 和 `zh-CN` 之间运行时切换，选择会在服务端持久化。
 
-Both languages have their own host-script templates and LLM writing directive, and the Chinese host can use independent Fish Audio credentials and a slower default speech speed. See `docs/architecture.md` for details.<br>
-两种语言各有自己的主持词模板和 LLM 写作指令，中文主持人可使用独立的 Fish Audio 凭据和更慢的默认语速。详见 `docs/architecture.md`。
+Both languages have their own LLM writing directive, and the Chinese host can use independent Fish Audio credentials and a slower default speech speed. See `docs/architecture.md` for details.<br>
+两种语言各有自己的 LLM 写作指令，中文主持人可使用独立的 Fish Audio 凭据和更慢的默认语速。详见 `docs/architecture.md`。
 
 ## Netease Risk Note<br>网易云风险说明
 

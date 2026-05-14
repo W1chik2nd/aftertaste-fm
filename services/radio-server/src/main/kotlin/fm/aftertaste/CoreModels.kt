@@ -4,11 +4,23 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class HostConfig(
-    val hostLanguage: String = "en-US",
+    val hostLanguage: String = DEFAULT_HOST_LANGUAGE,
     val hostStyle: String = "calm late-night radio",
     val hostName: String = "Aftertaste",
     val segmentSpeechMode: String = "between_segments"
 )
+
+internal const val DEFAULT_HOST_LANGUAGE = "en-US"
+internal const val CHINESE_HOST_LANGUAGE = "zh-CN"
+internal val SUPPORTED_HOST_LANGUAGES = setOf(DEFAULT_HOST_LANGUAGE, CHINESE_HOST_LANGUAGE)
+
+internal fun requireSupportedHostLanguage(hostLanguage: String): String {
+    val cleaned = hostLanguage.trim().ifBlank { DEFAULT_HOST_LANGUAGE }
+    require(cleaned in SUPPORTED_HOST_LANGUAGES) {
+        "Unsupported hostLanguage '$cleaned'. Supported values: ${SUPPORTED_HOST_LANGUAGES.joinToString(", ")}."
+    }
+    return cleaned
+}
 
 /**
  * Single source of truth for "is this a Chinese-speaking host". Host language tags are BCP-47

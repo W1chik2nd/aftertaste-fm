@@ -2,6 +2,7 @@ package fm.aftertaste
 
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationStopping
@@ -69,7 +70,7 @@ private fun buildServices(): AppServices {
         encodeDefaults = true
     }
     val hostConfig = HostConfig(
-        hostLanguage = Env.value("HOST_LANGUAGE") ?: "en-US",
+        hostLanguage = requireSupportedHostLanguage(Env.value("HOST_LANGUAGE") ?: DEFAULT_HOST_LANGUAGE),
         hostStyle = Env.value("HOST_VOICE_STYLE")?.trim()?.takeIf { it.isNotBlank() } ?: "calm late-night radio",
         hostName = Env.value("HOST_NAME") ?: "Aftertaste",
         segmentSpeechMode = "between_segments"
@@ -154,7 +155,11 @@ private fun Route.registerApiRoutes(services: AppServices) {
     }
     post("/settings/host-language") {
         val request = call.receive<HostLanguageRequest>()
-        call.respond(engine.setHostLanguage(request.hostLanguage))
+        try {
+            call.respond(engine.setHostLanguage(request.hostLanguage))
+        } catch (cause: IllegalArgumentException) {
+            call.respond(HttpStatusCode.BadRequest, ErrorResponse(cause.message ?: "Invalid hostLanguage."))
+        }
     }
     post("/weather/refresh") { call.respond(engine.refreshWeather()) }
     post("/play") { call.respond(engine.play()) }
@@ -170,7 +175,7 @@ private fun Route.registerApiRoutes(services: AppServices) {
     post("/agent/chat") {
         val request = call.receive<ChatRequest>()
         engine.rememberMessage("user", request.message)
-        val response = services.agentChat.reply(request.message, engine.now(), services.hostConfig)
+        val response = services.agentChat.reply(request.message, engine.now(), engine.activeHostConfig())
         response.command?.let { engine.handleCommand(it) }
         engine.rememberMessage("agent", response.message)
         call.respond(response)
@@ -198,4 +203,3 @@ data class AdapterHealthResponse(
     val status: String,
     val mode: String? = null
 )
-
