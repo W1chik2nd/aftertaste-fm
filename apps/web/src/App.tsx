@@ -4,7 +4,9 @@ import { radioApi } from "./api";
 import type { AgentTrace, HealthResponse, PlanResponse, PlaybackState, SettingsResponse } from "./types";
 import { type ChatMessage } from "./components/AgentPanel";
 import { AppAudio } from "./components/AppAudio";
+import { ClockHero } from "./components/ClockHero";
 import { LyricsPanel } from "./components/LyricsPanel";
+import { StatusStrip } from "./components/StatusStrip";
 import { AppNav } from "./components/AppNav";
 import { ImportView } from "./components/views/ImportView";
 import { LibraryView } from "./components/views/LibraryView";
@@ -198,9 +200,11 @@ function App() {
   }
 
   const displayDuration = durationSeconds || (current?.type === "track" && current.track?.durationMs ? current.track.durationMs / 1000 : 0);
+  const onAir = playback.isPlaying || playback.currentItem != null;
 
   return (
     <main className="shell">
+      <div className="device-panel">
       <AppAudio
         audioRef={audioRef}
         voiceRef={voiceRef}
@@ -210,6 +214,8 @@ function App() {
         advanceToNext={advanceToNext}
         onError={setError}
       />
+
+      <ClockHero onAir={onAir} />
 
       <header className="app-header" aria-label="Aftertaste FM">
         <div className="brand">
@@ -282,6 +288,9 @@ function App() {
       </div>
 
       {error && activeView !== "player" ? <div className="global-error">{error}</div> : null}
+
+      <StatusStrip />
+      </div>
     </main>
   );
 }

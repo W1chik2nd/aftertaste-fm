@@ -4,10 +4,11 @@
 .track-readout span,
 .lyrics-panel > span {
   margin: 0;
-  color: #6e6e73;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
@@ -15,28 +16,27 @@
   display: grid;
   grid-template-columns: minmax(370px, 1.05fr) minmax(330px, 0.95fr);
   grid-template-areas: "agent playback" "agent queue";
-  gap: 14px;
-  min-height: calc(100vh - 96px);
+  gap: var(--space-3);
 }
 
 .agent-panel,
 .playback-panel,
 .queue-panel {
-  background: #ffffff;
-  border: 1px solid #d2d2d7;
-  border-radius: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-card);
 }
 
 .agent-panel,
 .playback-panel {
-  padding: clamp(20px, 3vw, 32px);
+  padding: clamp(18px, 3vw, 30px);
 }
 
 .agent-panel {
   grid-area: agent;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: var(--space-4);
   min-height: 0;
 }
 
@@ -48,29 +48,33 @@
 
 .queue-panel {
   grid-area: queue;
-  padding: 22px;
+  padding: var(--space-6);
   min-height: 0;
 }
 
 .agent-intro {
   display: grid;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .agent-intro h1,
 .view-heading h1 {
   margin: 0;
-  font-size: clamp(2.1rem, 4.7vw, 4.7rem);
-  line-height: 0.98;
-  letter-spacing: 0;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: clamp(1.5rem, 3vw, 2.6rem);
+  line-height: 1.12;
+  letter-spacing: 0.01em;
+  color: var(--text-primary);
 }
 
 .agent-intro p:last-child {
   max-width: 560px;
   margin: 0;
-  color: #515154;
-  font-size: clamp(1rem, 1.4vw, 1.16rem);
-  line-height: 1.36;
+  color: var(--text-secondary);
+  font-family: var(--font-text);
+  font-size: clamp(0.92rem, 1.2vw, 1.02rem);
+  line-height: 1.45;
 }
 
 .section-heading,
@@ -78,35 +82,53 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-4);
+}
+
+.section-heading strong {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
 .model-note,
 .trace-signals div {
-  border: 1px solid #d2d2d7;
-  border-radius: 8px;
-  background: #fbfbfd;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-card);
+  background: var(--bg-inset);
 }
 
 .model-note {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
-  padding: 12px;
-  color: #515154;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  color: var(--text-secondary);
+}
+
+.model-note svg {
+  color: var(--text-faint);
 }
 
 .model-note p,
 .bubble p,
 .trace-columns ul {
   margin: 0;
-  line-height: 1.45;
+  line-height: 1.5;
+}
+
+.model-note p {
+  font-family: var(--font-text);
+  font-size: 0.86rem;
 }
 
 .conversation,
 .trace-panel {
   display: grid;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .conversation {
@@ -116,24 +138,34 @@
 
 .bubble {
   max-width: 88%;
-  padding: 12px 14px;
-  border-radius: 8px;
-  background: #f5f5f7;
+  padding: var(--space-3) var(--space-3);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line-soft);
+  background: var(--bg-inset);
 }
 
 .bubble.user {
   justify-self: end;
-  background: #0071e3;
-  color: #ffffff;
+  background: var(--bg-panel);
+  border-color: var(--line-strong);
+}
+
+.bubble p {
+  font-family: var(--font-text);
+  font-size: 0.9rem;
+  color: var(--text-primary);
 }
 
 .bubble span,
 .trace-signals span {
   display: block;
-  color: inherit;
-  opacity: 0.72;
-  font-size: 0.78rem;
-  font-weight: 800;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-1);
 }
 
 .composer {
@@ -141,11 +173,19 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  padding: 7px 7px 7px 16px;
-  border: 1px solid #d2d2d7;
-  border-radius: 8px;
-  background: #fff;
+  gap: var(--space-3);
+  padding: 7px 7px 7px var(--space-4);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-card);
+  background: var(--bg-inset);
+}
+
+.composer:focus-within {
+  border-color: var(--line-strong);
+}
+
+.composer svg {
+  color: var(--text-faint);
 }
 
 .composer input {
@@ -153,6 +193,13 @@
   border: 0;
   outline: 0;
   background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+}
+
+.composer input::placeholder {
+  color: var(--text-faint);
 }
 
 .composer button,
@@ -162,38 +209,56 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 0;
 }
 
 .composer button,
 .icon-button {
   width: 42px;
   height: 42px;
-  border-radius: 8px;
-  background: #1d1d1f;
-  color: #ffffff;
+  border-radius: var(--radius-button);
+  border: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--text-secondary);
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.composer button:hover:not(:disabled),
+.icon-button:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--line-strong);
+  background: var(--bg-panel);
 }
 
 .generate-button {
   min-height: 44px;
-  gap: 9px;
-  padding: 0 16px;
-  border-radius: 8px;
-  background: #0071e3;
-  color: #ffffff;
-  font-weight: 800;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-button);
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
   width: fit-content;
+  transition: background 120ms ease;
+}
+
+.generate-button:hover:not(:disabled) {
+  background: var(--bg-inset);
 }
 
 .trace-panel {
-  padding-top: 6px;
+  padding-top: var(--space-2);
   margin-top: auto;
 }
 
 .trace-signals,
 .trace-columns {
   display: grid;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .trace-signals {
@@ -202,13 +267,16 @@
 
 .trace-signals div {
   min-height: 78px;
-  padding: 12px;
+  padding: var(--space-3);
 }
 
 .trace-signals strong {
   display: block;
-  margin-top: 5px;
+  margin-top: var(--space-1);
   overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text-primary);
 }
 
 .trace-columns {
@@ -216,12 +284,25 @@
 }
 
 .trace-columns h3 {
-  margin: 0 0 8px;
-  font-size: 0.96rem;
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
 .trace-columns ul,
 .queue-list {
   padding: 0;
   list-style: none;
+}
+
+.trace-columns li {
+  color: var(--text-secondary);
+  font-family: var(--font-text);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  padding: 3px 0;
 }
