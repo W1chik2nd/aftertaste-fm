@@ -12,7 +12,7 @@ import { PlayerView } from "./components/views/PlayerView";
 import { SettingsView } from "./components/views/SettingsView";
 import { usePlayer, emptyPlayback } from "./hooks/usePlayer";
 import { useStoredView } from "./hooks/useStoredView";
-import { activeLyricLineIndex, parseLyrics } from "./utils/lyrics";
+import { useLyrics } from "./hooks/useLyrics";
 import { weatherLabel } from "./utils/format";
 
 function App() {
@@ -46,8 +46,6 @@ function App() {
   const [mood, setMood] = useState("");
   const [locationInput, setLocationInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [lyricsRaw, setLyricsRaw] = useState<string | null>(null);
-  const [lyricsLoading, setLyricsLoading] = useState(false);
 
   const current = playback.currentItem;
   const lyricTrack = current?.track ?? null;
@@ -62,40 +60,11 @@ function App() {
     () => playback.queue.slice(playback.currentIndex + 1, playback.currentIndex + 7),
     [playback.currentIndex, playback.queue]
   );
-  const lyricLines = useMemo(() => parseLyrics(lyricsRaw), [lyricsRaw]);
-  const activeLyricIndex = useMemo(
-    () => activeLyricLineIndex(lyricLines, progressSeconds),
-    [lyricLines, progressSeconds]
-  );
+  const { lyricLines, activeLyricIndex, lyricsLoading } = useLyrics(lyricTrack?.id, progressSeconds);
 
   useEffect(() => {
     void initialize();
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLyricsRaw(null);
-    setLyricsLoading(false);
-    if (!lyricTrack?.id) return;
-
-    async function loadLyrics(trackId: string) {
-      setLyricsLoading(true);
-      try {
-        const response = await radioApi.lyrics(trackId);
-        if (!cancelled) setLyricsRaw(response.lyrics?.trim() || null);
-      } catch (event) {
-        console.warn("Could not load lyrics.", event);
-        if (!cancelled) setLyricsRaw(null);
-      } finally {
-        if (!cancelled) setLyricsLoading(false);
-      }
-    }
-
-    void loadLyrics(lyricTrack.id);
-    return () => {
-      cancelled = true;
-    };
-  }, [lyricTrack?.id]);
 
   async function initialize() {
     await refreshStatus();
@@ -167,6 +136,29 @@ function App() {
       ]);
     } catch (event) {
       setError(event instanceof Error ? event.message : "Could not update weather location.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function changeHostLanguage(hostLanguage: string) {
+    if (settings?.hostLanguage === hostLanguage) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const nextSettings = await radioApi.setHostLanguage(hostLanguage);
+      setSettings(nextSettings);
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        {
+          role: "agent",
+          text: nextSettings.hostLanguage.startsWith("zh")
+            ? "好的，主播切换成中文了。下一档节目就会用中文播报。"
+            : "Host switched to English. It applies to the next show you generate."
+        }
+      ]);
+    } catch (event) {
+      setError(event instanceof Error ? event.message : "Could not switch host language.");
     } finally {
       setBusy(false);
     }
@@ -281,6 +273,7 @@ function App() {
             locationInput={locationInput}
             setLocationInput={setLocationInput}
             onSaveLocation={saveLocation}
+            onSetHostLanguage={(language) => void changeHostLanguage(language)}
             onRefreshStatus={() => { void refreshStatus(); void refreshSettings(); }}
             busy={busy}
           />

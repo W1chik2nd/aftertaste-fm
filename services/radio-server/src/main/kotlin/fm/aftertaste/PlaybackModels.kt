@@ -70,16 +70,22 @@ data class WeatherSnapshot(
 @Serializable
 data class UserSettings(
     val weatherLocation: String? = null,
-    val weather: WeatherSnapshot? = null
+    val weather: WeatherSnapshot? = null,
+    // null = follow the HOST_LANGUAGE env default; set = a runtime override chosen in Settings.
+    val hostLanguage: String? = null
 )
 
 @Serializable
 data class LocationRequest(val location: String)
 
 @Serializable
+data class HostLanguageRequest(val hostLanguage: String)
+
+@Serializable
 data class SettingsResponse(
     val weatherLocation: String? = null,
     val weather: WeatherSnapshot? = null,
+    val hostLanguage: String = "en-US",
     val integrations: List<IntegrationStatus> = emptyList()
 )
 

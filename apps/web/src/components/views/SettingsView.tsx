@@ -10,9 +10,15 @@ type Props = {
   locationInput: string;
   setLocationInput: (value: string) => void;
   onSaveLocation: (event: FormEvent<HTMLFormElement>) => void;
+  onSetHostLanguage: (language: string) => void;
   onRefreshStatus: () => void;
   busy: boolean;
 };
+
+const HOST_LANGUAGE_OPTIONS = [
+  { value: "en-US", label: "English" },
+  { value: "zh-CN", label: "中文" }
+] as const;
 
 export function SettingsView({
   health,
@@ -21,9 +27,11 @@ export function SettingsView({
   locationInput,
   setLocationInput,
   onSaveLocation,
+  onSetHostLanguage,
   onRefreshStatus,
   busy
 }: Props) {
+  const hostLanguage = settings?.hostLanguage ?? health?.hostConfig.hostLanguage ?? "en-US";
   return (
     <section className="view-surface settings-view" aria-label="Settings">
       <div className="view-heading">
@@ -40,7 +48,24 @@ export function SettingsView({
       <div className="settings-grid">
         <section className="settings-block">
           <h2>Host</h2>
-          <Readout icon={<Languages size={18} />} label="Language" value={health?.hostConfig.hostLanguage ?? "en-US"} />
+          <div className="settings-readout">
+            <Languages size={18} />
+            <span>Language</span>
+            <div className="host-language-toggle" role="group" aria-label="Host language">
+              {HOST_LANGUAGE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={hostLanguage === option.value ? "active" : ""}
+                  aria-pressed={hostLanguage === option.value}
+                  disabled={busy}
+                  onClick={() => onSetHostLanguage(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <Readout icon={<Server size={18} />} label="Name" value={health?.hostConfig.hostName ?? "Aftertaste"} />
           <Readout icon={<Wifi size={18} />} label="Default style" value={health?.hostConfig.hostStyle ?? "calm late-night radio"} />
           <Readout icon={<CloudSun size={18} />} label="Current mode" value={health?.stationStyle.hostStyle ?? "calm late-night radio"} />

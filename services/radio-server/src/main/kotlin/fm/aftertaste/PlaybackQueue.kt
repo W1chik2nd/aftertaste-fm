@@ -15,8 +15,11 @@ class PlaybackQueue(
     private var isPlaying: Boolean = false
 
     suspend fun load(plan: ShowPlan) = coroutineScope {
+        // The plan carries the host config that planning actually used (incl. the runtime
+        // language override); voice synthesis and queue metadata follow it, not the ctor default.
+        val planHost = plan.hostConfig
         val hostAssets = plan.segments
-            .map { segment -> async { hostVoiceService.synthesize(segment.hostScript) } }
+            .map { segment -> async { hostVoiceService.synthesize(segment.hostScript, planHost.hostLanguage) } }
             .awaitAll()
 
         showPlan = plan
@@ -31,8 +34,8 @@ class PlaybackQueue(
                     type = "host_voice",
                     segmentId = segment.id,
                     segmentTitle = segment.title,
-                    hostName = hostConfig.hostName,
-                    hostLanguage = hostConfig.hostLanguage,
+                    hostName = planHost.hostName,
+                    hostLanguage = planHost.hostLanguage,
                     hostScript = segment.hostScript,
                     ttsUrl = hostAsset.audioUrl,
                     ttsCacheKey = hostAsset.cacheKey,
@@ -98,7 +101,7 @@ class PlaybackQueue(
             isPlaying = isPlaying,
             progressMs = 0,
             durationMs = current?.track?.durationMs,
-            hostLanguage = hostConfig.hostLanguage
+            hostLanguage = showPlan?.hostConfig?.hostLanguage ?: hostConfig.hostLanguage
         )
     }
 }

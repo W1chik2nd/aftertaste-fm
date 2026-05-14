@@ -10,6 +10,13 @@ data class HostConfig(
     val segmentSpeechMode: String = "between_segments"
 )
 
+/**
+ * Single source of truth for "is this a Chinese-speaking host". Host language tags are BCP-47
+ * style (`zh-CN`, `zh-Hant`, ...); everything Chinese-related branches on this, not on `== "zh-CN"`.
+ */
+internal fun isChineseHostLanguage(hostLanguage: String): Boolean =
+    hostLanguage.startsWith("zh", ignoreCase = true)
+
 @Serializable
 data class Track(
     val provider: String,

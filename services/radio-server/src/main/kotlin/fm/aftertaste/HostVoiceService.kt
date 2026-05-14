@@ -21,8 +21,6 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
-import java.time.OffsetDateTime
-import kotlin.random.Random
 
 private const val FISH_ERROR_BODY_CHARS = 220
 private const val HOST_CACHE_KEY_CHARS = 24
@@ -34,14 +32,19 @@ class HostVoiceService(
     private val logger = LoggerFactory.getLogger(HostVoiceService::class.java)
 
     private val fishApiKey = Env.value("FISH_API_KEY")
+    private val fishVoiceId = Env.value("FISH_VOICE_ID")
+    // Chinese host gets its own Fish credentials; falls back to the default ones when unset.
+    private val fishApiKeyZh = Env.value("FISH_API_KEY_ZH")
+    private val fishVoiceIdZh = Env.value("FISH_VOICE_ID_ZH")
     private val fishEndpoint = Env.value("FISH_TTS_ENDPOINT") ?: "https://api.fish.audio/v1/tts"
     private val fishModel = Env.value("FISH_TTS_MODEL") ?: "s2-pro"
-    private val fishVoiceId = Env.value("FISH_VOICE_ID")
     private val fishFormat = Env.value("FISH_TTS_FORMAT") ?: "mp3"
     private val fishLatency = Env.value("FISH_TTS_LATENCY") ?: "normal"
     private val fishTemperature = Env.value("FISH_TTS_TEMPERATURE")?.toDoubleOrNull() ?: 0.7
     private val fishTopP = Env.value("FISH_TTS_TOP_P")?.toDoubleOrNull() ?: 0.7
     private val fishSpeed = Env.value("FISH_TTS_SPEED")?.toDoubleOrNull() ?: 1.0
+    // Mandarin at speed 1.0 reads rushed and flat; the Chinese host is slower by default.
+    private val fishSpeedZh = Env.value("FISH_TTS_SPEED_ZH")?.toDoubleOrNull() ?: 0.85
     private val fishVolume = Env.value("FISH_TTS_VOLUME")?.toDoubleOrNull() ?: 4.0
     private val fishSampleRate = Env.value("FISH_TTS_SAMPLE_RATE")?.toIntOrNull() ?: 44100
     private val fishMp3Bitrate = Env.value("FISH_TTS_MP3_BITRATE")?.toIntOrNull() ?: 128
@@ -50,64 +53,28 @@ class HostVoiceService(
     private val cacheEnabled = Env.value("FISH_TTS_CACHE")?.lowercase() == "true"
     private val cacheDirectory: Path = Env.path("TTS_CACHE_DIR", "cache/tts")
 
-    fun generateHostScript(
-        segmentTitle: String,
-        tracks: List<Track>,
-        context: RecommendationContext,
-        chapterIndex: Int = 0
-    ): String {
-        val lead = tracks.firstOrNull()
-        val clock = OffsetDateTime.now()
-        val timeText = "%d:%02d".format(clock.hour, clock.minute)
-        val mood = hostMoodLabel(context)
-        val station = context.stationStyle?.label?.lowercase() ?: "the station"
-        val leadLine = lead?.let { "Now, ${it.artist}, ${it.title}." } ?: "Let this chapter take its time."
-        val leadIntro = lead?.let { "${it.title} by ${it.artist}" } ?: "this next record"
-        val weather = context.weather?.let {
-            " Outside in ${friendlyPlaceName(it.locationName)}, it is ${it.condition} and ${"%.0f".format(it.temperatureC)} degrees."
-        }.orEmpty()
-        val seed = listOf(segmentTitle, context.variationSeed, lead?.id).joinToString("|").hashCode()
-        val firstChapterOpenings = listOf(
-            "It is $timeText now.$weather We start quietly, with $leadIntro close enough to feel personal and far enough away to leave some room.",
-            "$timeText.$weather This first chapter does not need a grand entrance. $leadIntro can come in at the pace of $station.",
-            "The hour is $timeText.$weather For the first record, we keep it close and let $leadIntro set the pace without announcing itself too hard.",
-            "${weather.trimStart()} The clock says $timeText, and this opening chapter is more about settling than declaring. $leadIntro gives us that first soft edge."
-        )
-        return when (chapterIndex) {
-            0 -> "${firstChapterOpenings.randomBy(seed)} It keeps close to $mood without forcing the feeling into shape. $leadLine"
-            1 -> listOf(
-                "A few songs in, the station has changed texture. This chapter stays with what remains after the noise falls away. $leadIntro gives that feeling a center, then the next songs get to move cleanly around it. $leadLine",
-                "We turn a little, but we do not break the spell. $leadIntro keeps things close and steady, the kind of song that lets memory be present without making a speech out of it. $leadLine",
-                "The second chapter should feel less like a reset and more like a handoff. $leadIntro carries the thread forward, soft at the edges and clear in the middle. $leadLine"
-            ).randomBy(seed)
-            2 -> listOf(
-                "This is where the room gets a little wider. $leadIntro gives the chapter more air while keeping the pulse of $station intact. $leadLine",
-                "Now we let the show breathe out. $leadIntro opens a wider lane, still careful, still close, but no longer holding every thought in place. $leadLine",
-                "The middle has done its quiet work, so this chapter can lift without rushing. $leadIntro is the door opening a little farther. $leadLine"
-            ).randomBy(seed)
-            else -> listOf(
-                "For the last chapter, we do not need to explain too much. The point is to leave the hour somewhere softer than where it began, and $leadIntro feels right for that. $leadLine",
-                "We take the final turn without tying a ribbon around it. $leadIntro can carry us out slowly, with enough distance to feel calm and enough warmth to stay near. $leadLine",
-                "This last stretch is for letting the room settle. $leadIntro does not demand an answer; it just gives the ending somewhere gentle to land. $leadLine"
-            ).randomBy(seed)
-        }
-    }
+    /**
+     * Fish settings for a given host language. Chinese uses the dedicated key/voice when set,
+     * otherwise it reuses the default ones so a single-key setup still produces a Chinese host.
+     * `speed` is per-language: Mandarin needs a slower delivery to not sound like a reading machine.
+     */
+    private data class VoiceProfile(val apiKey: String?, val voiceId: String?, val speed: Double)
 
-    private fun hostMoodLabel(context: RecommendationContext): String {
-        val routing = context.routing
-        return when {
-            "too-sad" in routing.avoid -> "something soft without letting the room get too heavy"
-            routing.language?.startsWith("zh") == true && routing.energy == "low" -> "a low-energy Chinese indie thread"
-            routing.routine == "late-night-coding" -> "late-night focus with the edges softened"
-            routing.energy == "low" -> "a quiet, low-energy stretch"
-            context.mood.isNullOrBlank() -> context.stationStyle?.hostStyle ?: "that quiet feeling where memory is present, but not loud"
-            else -> "the feeling you asked for"
+    private fun voiceProfileFor(hostLanguage: String): VoiceProfile =
+        if (isChineseHostLanguage(hostLanguage)) {
+            VoiceProfile(
+                apiKey = fishApiKeyZh?.takeIf { it.isNotBlank() } ?: fishApiKey,
+                voiceId = fishVoiceIdZh?.takeIf { it.isNotBlank() } ?: fishVoiceId,
+                speed = fishSpeedZh
+            )
+        } else {
+            VoiceProfile(apiKey = fishApiKey, voiceId = fishVoiceId, speed = fishSpeed)
         }
-    }
 
-    suspend fun synthesize(script: String): HostVoiceAsset {
-        val digest = cacheKey(script)
-        if (fishApiKey.isNullOrBlank()) {
+    suspend fun synthesize(script: String, hostLanguage: String = "en-US"): HostVoiceAsset {
+        val profile = voiceProfileFor(hostLanguage)
+        val digest = cacheKey(script, profile.voiceId)
+        if (profile.apiKey.isNullOrBlank()) {
             return HostVoiceAsset(script = script, audioUrl = null, cacheKey = digest)
         }
 
@@ -123,21 +90,26 @@ class HostVoiceService(
         }
 
         return runCatching {
-            performFishRequest(script, outputFile, digest)
+            performFishRequest(script, outputFile, digest, profile)
         }.getOrElse { error ->
             logger.warn("Fish TTS skipped: {}", error.message)
             HostVoiceAsset(script = script, audioUrl = null, cacheKey = digest)
         }
     }
 
-    private suspend fun performFishRequest(script: String, outputFile: Path, digest: String): HostVoiceAsset =
+    private suspend fun performFishRequest(
+        script: String,
+        outputFile: Path,
+        digest: String,
+        profile: VoiceProfile
+    ): HostVoiceAsset =
         withContext(Dispatchers.IO) {
             Files.createDirectories(cacheDirectory)
             val response = httpClient.post(fishEndpoint) {
-                header("Authorization", "Bearer $fishApiKey")
+                header("Authorization", "Bearer ${profile.apiKey}")
                 header("model", fishModel)
                 contentType(ContentType.Application.Json)
-                setBody(buildFishPayload(script).toString())
+                setBody(buildFishPayload(script, profile).toString())
             }
             if (response.status.value !in 200..299) {
                 val reason = response.bodyAsText().take(FISH_ERROR_BODY_CHARS)
@@ -182,19 +154,19 @@ class HostVoiceService(
         }
     }
 
-    private fun cacheKey(script: String): String =
+    private fun cacheKey(script: String, voiceId: String?): String =
         MessageDigest.getInstance("SHA-256")
-            .digest("$fishModel|${fishVoiceId.orEmpty()}|$fishFormat|$script".toByteArray())
+            .digest("$fishModel|${voiceId.orEmpty()}|$fishFormat|$script".toByteArray())
             .joinToString("") { "%02x".format(it) }
             .take(HOST_CACHE_KEY_CHARS)
 
-    private fun buildFishPayload(script: String) = buildJsonObject {
+    private fun buildFishPayload(script: String, profile: VoiceProfile) = buildJsonObject {
         put("text", script)
-        if (!fishVoiceId.isNullOrBlank()) put("reference_id", fishVoiceId)
+        if (!profile.voiceId.isNullOrBlank()) put("reference_id", profile.voiceId)
         put("temperature", fishTemperature)
         put("top_p", fishTopP)
         putJsonObject("prosody") {
-            put("speed", fishSpeed)
+            put("speed", profile.speed)
             put("volume", fishVolume)
             put("normalize_loudness", true)
         }
@@ -211,5 +183,3 @@ class HostVoiceService(
         put("early_stop_threshold", 1.0)
     }
 }
-
-internal fun <T> List<T>.randomBy(seed: Int): T = this[Random(seed).nextInt(size)]

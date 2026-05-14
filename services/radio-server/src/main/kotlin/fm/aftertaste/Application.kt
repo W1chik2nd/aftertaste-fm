@@ -152,6 +152,10 @@ private fun Route.registerApiRoutes(services: AppServices) {
         val request = call.receive<LocationRequest>()
         call.respond(engine.setWeatherLocation(request.location))
     }
+    post("/settings/host-language") {
+        val request = call.receive<HostLanguageRequest>()
+        call.respond(engine.setHostLanguage(request.hostLanguage))
+    }
     post("/weather/refresh") { call.respond(engine.refreshWeather()) }
     post("/play") { call.respond(engine.play()) }
     post("/pause") { call.respond(engine.pause()) }

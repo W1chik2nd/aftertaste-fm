@@ -337,8 +337,8 @@ The Kotlin `gradlew` script downloads a local Gradle distribution into the repo 
 
 ## Environment<br>环境变量
 
-- `HOST_LANGUAGE`: defaults to `en-US`.<br>
-  `HOST_LANGUAGE`：默认 `en-US`。
+- `HOST_LANGUAGE`: default host language, defaults to `en-US`. Switchable at runtime from the Settings view (`en-US` / `zh-CN`).<br>
+  `HOST_LANGUAGE`：默认主持人语言，默认 `en-US`；可在 Settings 页面运行时切换（`en-US` / `zh-CN`）。
 - `HOST_VOICE_STYLE`: defaults to `calm-late-night`.<br>
   `HOST_VOICE_STYLE`：默认 `calm-late-night`。
 - `HOST_NAME`: defaults to `Aftertaste`.<br>
@@ -381,6 +381,10 @@ The Kotlin `gradlew` script downloads a local Gradle distribution into the repo 
   `FISH_API_KEY`：可选；为主持人串场启用 Fish Audio TTS。
 - `FISH_VOICE_ID`: optional Fish Audio voice/model id. Recommended for predictable voice quality.<br>
   `FISH_VOICE_ID`：可选的 Fish Audio 声音/模型 id；建议配置以获得稳定音色。
+- `FISH_API_KEY_ZH` / `FISH_VOICE_ID_ZH`: optional independent Fish credentials for the Chinese host. When blank, the Chinese host reuses `FISH_API_KEY` / `FISH_VOICE_ID`.<br>
+  `FISH_API_KEY_ZH` / `FISH_VOICE_ID_ZH`：可选，中文主持人独立的 Fish 凭据；留空时中文主持人会复用 `FISH_API_KEY` / `FISH_VOICE_ID`。
+- `FISH_TTS_SPEED_ZH`: Chinese host speech speed, defaults to `0.85`. Mandarin at `1.0` reads rushed; lower it for a calmer, more emotional delivery.<br>
+  `FISH_TTS_SPEED_ZH`：中文主持人语速，默认 `0.85`；中文在 `1.0` 会显得赶，调低会更平静、更有情感。
 - `FISH_TTS_MODEL`: defaults to `s2-pro`.<br>
   `FISH_TTS_MODEL`：默认 `s2-pro`。
 - `FISH_TTS_FORMAT`: defaults to `mp3`.<br>
@@ -405,13 +409,13 @@ The durable data is the user's taste profile, play history, show plans, queue st
 Music playback should come from legal platform streams where possible.<br>
 音乐播放应尽可能来自合法平台流媒体。
 
-## Host Language Default<br>默认主持人语言
+## Host Language<br>主持人语言
 
-The default host voice is deliberately narrow: `en-US`, host name `Aftertaste`, style `calm late-night radio`, and `between_segments` speech.<br>
-默认主持人声音刻意保持收窄：`en-US`、主持人名 `Aftertaste`、风格 `calm late-night radio`，并采用 `between_segments` 的说话方式。
+The default host config is `en-US`, host name `Aftertaste`, style `calm late-night radio`, and `between_segments` speech. `HOST_LANGUAGE` sets the default; the Settings view switches it at runtime between `en-US` and `zh-CN`, and the choice is persisted server-side.<br>
+默认主持人配置为 `en-US`、主持人名 `Aftertaste`、风格 `calm late-night radio`，并采用 `between_segments` 的说话方式。`HOST_LANGUAGE` 设置默认值；Settings 页面可在 `en-US` 和 `zh-CN` 之间运行时切换，选择会在服务端持久化。
 
-That keeps the show-writing behavior coherent while the architecture leaves room for other languages and host styles.<br>
-这样可以让节目文案行为保持一致，同时架构上仍给其他语言和主持风格留出空间。
+Both languages have their own host-script templates and LLM writing directive, and the Chinese host can use independent Fish Audio credentials and a slower default speech speed. See `docs/architecture.md` for details.<br>
+两种语言各有自己的主持词模板和 LLM 写作指令，中文主持人可使用独立的 Fish Audio 凭据和更慢的默认语速。详见 `docs/architecture.md`。
 
 ## Netease Risk Note<br>网易云风险说明
 
@@ -431,8 +435,6 @@ Aftertaste 会把它放在 adapter 边界之后，并始终保留 mock 路径，
   把音频特征和用户行为加入离线分析。
 - Expand `MusicProvider` implementations: local files, CSV, Spotify, Apple Music, QQ Music.<br>
   扩展 `MusicProvider` 实现：本地文件、CSV、Spotify、Apple Music、QQ Music。
-- Add `zh-CN` host language support.<br>
-  增加 `zh-CN` 主持人语言支持。
 - Add WebSocket now-playing push and richer progress tracking.<br>
   增加 WebSocket now-playing 推送和更丰富的进度追踪。
 - Package the web app as a PWA, then explore Mac/iPhone shells.<br>

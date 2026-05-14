@@ -137,4 +137,6 @@ Prompt construction does not send the whole database. `RadioEngine` retrieves a 
 
 ## Host Language
 
-English is fully supported first. `zh-CN` is reserved in config and models, but the v0.1 writing style and mock planner are tuned for `en-US`.
+`en-US` and `zh-CN` are both supported. `HOST_LANGUAGE` sets the default; the Settings view switches it at runtime via `POST /api/settings/host-language`, and the override is persisted in `app_state` settings. The language flows through `HostConfig.hostLanguage` into the plan, so `LlmShowPlanner` (language-specific writing directive), the deterministic `HostScriptTemplates` (separate English / Mandarin template sets), `RadioAgent` trace, and `AgentChatService` fallback copy all follow it. Switching language applies to the next generated show, not the queue already loaded.
+
+The Chinese host can use independent Fish Audio credentials: `FISH_API_KEY_ZH` and `FISH_VOICE_ID_ZH`. When either is blank, the Chinese host falls back to the default `FISH_API_KEY` / `FISH_VOICE_ID`, so a single-key setup still produces a Chinese voice. Speech speed is per-language — `FISH_TTS_SPEED_ZH` (default `0.85`) keeps the Mandarin delivery slower than `FISH_TTS_SPEED`, since Mandarin at 1.0 reads rushed and flat. The Chinese host scripts (both `HostScriptTemplates` and the `LlmShowPlanner` directive) deliberately use short sentences so the TTS gets frequent `。` pause points.

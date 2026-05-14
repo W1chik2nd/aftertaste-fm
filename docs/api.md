@@ -61,20 +61,34 @@ Each returns the updated now-playing state.
 
 `GET /api/settings`
 
-Returns runtime settings, including optional `weatherLocation`, the latest `weather` snapshot, and integration status only. API key values are never returned.
+Returns runtime settings, including optional `weatherLocation`, the latest `weather` snapshot, the active `hostLanguage`, and integration status only. API key values are never returned. `hostLanguage` is the env `HOST_LANGUAGE` default unless a runtime override has been set.
 
 ```json
 {
   "weatherLocation": "Leeds",
   "weather": null,
+  "hostLanguage": "en-US",
   "integrations": [
     { "id": "llm", "label": "LLM", "configured": true },
     { "id": "fish", "label": "Fish TTS", "configured": false },
+    { "id": "fish-zh", "label": "Fish TTS (Chinese)", "configured": false },
     { "id": "netease", "label": "Netease cookie", "configured": false },
     { "id": "openweather", "label": "OpenWeather", "configured": false }
   ]
 }
 ```
+
+`POST /api/settings/host-language`
+
+Body:
+
+```json
+{
+  "hostLanguage": "zh-CN"
+}
+```
+
+Sets the runtime host language (`en-US` / `zh-CN`). It is persisted in `app_state` settings and applies to the next show generated via `POST /api/plan/today` or `POST /api/chat`; the already-loaded queue is not retranslated. Returns the updated settings response.
 
 `POST /api/settings/location`
 

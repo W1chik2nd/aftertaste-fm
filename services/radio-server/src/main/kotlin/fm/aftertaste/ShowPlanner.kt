@@ -7,8 +7,7 @@ import java.time.format.DateTimeFormatter
 private const val MAX_DETERMINISTIC_SEGMENTS = 4
 
 class ShowPlanner(
-    private val hostConfig: HostConfig,
-    private val hostVoiceService: HostVoiceService
+    private val hostConfig: HostConfig
 ) {
     fun plan(tracks: List<Track>, context: RecommendationContext, activeHostConfig: HostConfig = hostConfig): ShowPlan {
         val today = LocalDate.now()
@@ -19,7 +18,9 @@ class ShowPlanner(
             .take(MAX_DETERMINISTIC_SEGMENTS)
         val segments = chunks.mapIndexed { index, segmentTracks ->
             val segmentTitle = "Chapter ${index + 1}"
-            val script = hostVoiceService.generateHostScript(segmentTitle, segmentTracks, context, index)
+            val script = HostScriptTemplates.generate(
+                segmentTitle, segmentTracks, context, index, activeHostConfig.hostLanguage
+            )
             ShowSegment(
                 id = "seg-${today}-$index",
                 title = segmentTitle,

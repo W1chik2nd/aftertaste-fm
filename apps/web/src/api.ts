@@ -78,6 +78,11 @@ export const radioApi = {
       method: "POST",
       body: JSON.stringify({ location })
     }),
+  setHostLanguage: (hostLanguage: string) =>
+    request<SettingsResponse>("/api/settings/host-language", {
+      method: "POST",
+      body: JSON.stringify({ hostLanguage })
+    }),
   refreshWeather: () => request<SettingsResponse>("/api/weather/refresh", { method: "POST" }),
   planToday: () => request<PlanResponse>("/api/plan/today", { method: "POST" }),
   chat: (message: string, routingIntent?: RoutingIntent | null) =>
