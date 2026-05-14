@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { radioApi } from "../api";
 import type { PlaybackState } from "../types";
 import { mainMediaUrl, voiceOverlayUrl } from "../utils/media";
+import { OFFLINE_MEDIA_MESSAGE, isBrowserOffline } from "../utils/network";
 
 const emptyPlayback: PlaybackState = {
   currentItem: null,
@@ -91,11 +92,17 @@ export function usePlayer(): UsePlayerResult {
       if (audio.ended || audio.currentTime >= (audio.duration || Infinity)) {
         audio.currentTime = 0;
       }
-      void audio.play().catch(() => setError("Audio could not start. The item may be unavailable."));
+      void audio.play().catch((event) => {
+        console.warn("Audio playback failed.", event);
+        setError(isBrowserOffline() ? OFFLINE_MEDIA_MESSAGE : "Audio could not start. The item may be unavailable.");
+      });
     }
     if (voiceUrl && voice) {
       voice.volume = 1;
-      void voice.play().catch(() => setError("Host voice could not start, but the lead track can keep playing."));
+      void voice.play().catch((event) => {
+        console.warn("Host voice playback failed.", event);
+        setError(isBrowserOffline() ? OFFLINE_MEDIA_MESSAGE : "Host voice could not start, but the lead track can keep playing.");
+      });
     }
   }, [current?.id, mainUrl, playback.isPlaying, voiceUrl]);
 

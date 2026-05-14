@@ -208,6 +208,7 @@ function App() {
         setProgressSeconds={setProgressSeconds}
         setDurationSeconds={setDurationSeconds}
         advanceToNext={advanceToNext}
+        onError={setError}
       />
 
       <header className="app-header" aria-label="Aftertaste FM">

@@ -23,10 +23,12 @@ import type {
   DeleteTrackEvidenceResponse
 } from "./types";
 import type { ImportEvidenceJsonResponse } from "./externalImportTypes";
+import { OFFLINE_LIVE_ACTION_MESSAGE, isBrowserOffline } from "./utils/network";
 
 const DEFAULT_API_BASE = "";
 const API_BASE = import.meta.env.VITE_RADIO_API_BASE ?? DEFAULT_API_BASE;
 const ERROR_SNIPPET_CHARS = 240;
+const LIVE_ACTION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 export function resolveMediaUrl(url?: string | null) {
   if (!url) return undefined;
@@ -42,6 +44,11 @@ class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = init?.method?.toUpperCase() ?? "GET";
+  if (LIVE_ACTION_METHODS.has(method) && isBrowserOffline()) {
+    throw new Error(OFFLINE_LIVE_ACTION_MESSAGE);
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
