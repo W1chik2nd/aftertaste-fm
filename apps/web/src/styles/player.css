@@ -1,5 +1,6 @@
-.eyebrow,
-.section-heading span,
+/* Shared player-surface typography + the chat / trace internals.
+   Layout for the player-centric stack lives in player-view.css. */
+
 .host-readout span,
 .track-readout span,
 .lyrics-panel > span {
@@ -12,72 +13,6 @@
   text-transform: uppercase;
 }
 
-.workspace {
-  display: grid;
-  grid-template-columns: minmax(370px, 1.05fr) minmax(330px, 0.95fr);
-  grid-template-areas: "agent playback" "agent queue";
-  gap: var(--space-3);
-}
-
-.agent-panel,
-.playback-panel,
-.queue-panel {
-  background: var(--bg-elevated);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-card);
-}
-
-.agent-panel,
-.playback-panel {
-  padding: clamp(18px, 3vw, 30px);
-}
-
-.agent-panel {
-  grid-area: agent;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-height: 0;
-}
-
-.playback-panel {
-  grid-area: playback;
-  display: flex;
-  flex-direction: column;
-}
-
-.queue-panel {
-  grid-area: queue;
-  padding: var(--space-6);
-  min-height: 0;
-}
-
-.agent-intro {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.agent-intro h1,
-.view-heading h1 {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: clamp(1.5rem, 3vw, 2.6rem);
-  line-height: 1.12;
-  letter-spacing: 0.01em;
-  color: var(--text-primary);
-}
-
-.agent-intro p:last-child {
-  max-width: 560px;
-  margin: 0;
-  color: var(--text-secondary);
-  font-family: var(--font-text);
-  font-size: clamp(0.92rem, 1.2vw, 1.02rem);
-  line-height: 1.45;
-}
-
-.section-heading,
 .now-header {
   display: flex;
   align-items: flex-start;
@@ -85,88 +20,64 @@
   gap: var(--space-4);
 }
 
-.section-heading strong {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
+/* --- Chat conversation --- */
 
-.model-note,
-.trace-signals div {
+.conversation {
+  display: grid;
+  gap: var(--space-3);
+  max-height: 320px;
+  overflow-y: auto;
+  padding: var(--space-3);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-card);
   background: var(--bg-inset);
 }
 
-.model-note {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--space-3);
-  padding: var(--space-3);
-  color: var(--text-secondary);
+.conversation-empty {
+  align-content: center;
 }
 
-.model-note svg {
-  color: var(--text-faint);
-}
-
-.model-note p,
-.bubble p,
-.trace-columns ul {
+.conversation-empty p {
   margin: 0;
-  line-height: 1.5;
-}
-
-.model-note p {
+  color: var(--text-secondary);
   font-family: var(--font-text);
-  font-size: 0.86rem;
-}
-
-.conversation,
-.trace-panel {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.conversation {
-  min-height: 156px;
-  align-content: end;
+  font-size: 0.88rem;
+  line-height: 1.5;
 }
 
 .bubble {
   max-width: 88%;
-  padding: var(--space-3) var(--space-3);
+  padding: var(--space-3);
   border-radius: var(--radius-card);
   border: 1px solid var(--line-soft);
-  background: var(--bg-inset);
+  background: var(--bg-panel);
 }
 
 .bubble.user {
   justify-self: end;
-  background: var(--bg-panel);
   border-color: var(--line-strong);
 }
 
 .bubble p {
+  margin: 0;
   font-family: var(--font-text);
   font-size: 0.9rem;
+  line-height: 1.5;
   color: var(--text-primary);
 }
 
-.bubble span,
-.trace-signals span {
+.bubble span {
   display: block;
+  margin-bottom: var(--space-1);
   color: var(--text-faint);
   font-family: var(--font-mono);
   font-size: 0.66rem;
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  margin-bottom: var(--space-1);
 }
+
+/* --- Composer + generate --- */
 
 .composer {
   min-height: 56px;
@@ -211,8 +122,7 @@
   justify-content: center;
 }
 
-.composer button,
-.icon-button {
+.composer button {
   width: 42px;
   height: 42px;
   border-radius: var(--radius-button);
@@ -222,8 +132,7 @@
   transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
 }
 
-.composer button:hover:not(:disabled),
-.icon-button:hover:not(:disabled) {
+.composer button:hover:not(:disabled) {
   color: var(--text-primary);
   border-color: var(--line-strong);
   background: var(--bg-panel);
@@ -250,9 +159,11 @@
   background: var(--bg-inset);
 }
 
+/* --- Agent trace (inside the collapsible) --- */
+
 .trace-panel {
-  padding-top: var(--space-2);
-  margin-top: auto;
+  display: grid;
+  gap: var(--space-3);
 }
 
 .trace-signals,
@@ -268,6 +179,20 @@
 .trace-signals div {
   min-height: 78px;
   padding: var(--space-3);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-card);
+  background: var(--bg-inset);
+}
+
+.trace-signals span {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .trace-signals strong {
@@ -295,6 +220,7 @@
 
 .trace-columns ul,
 .queue-list {
+  margin: 0;
   padding: 0;
   list-style: none;
 }
@@ -305,4 +231,11 @@
   font-size: 0.84rem;
   line-height: 1.5;
   padding: 3px 0;
+}
+
+@media (max-width: 640px) {
+  .trace-signals,
+  .trace-columns {
+    grid-template-columns: 1fr;
+  }
 }

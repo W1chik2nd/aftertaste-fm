@@ -1,8 +1,9 @@
 .clock-hero {
+  container-type: inline-size;
   display: grid;
   justify-items: center;
   gap: var(--space-2);
-  padding: clamp(20px, 4vw, 44px) var(--space-4);
+  padding: clamp(18px, 3vw, 32px) var(--space-4);
   border-radius: var(--radius-inset);
   background-color: var(--bg-inset);
   background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
@@ -22,8 +23,9 @@
 .clock-hero-time {
   display: inline-flex;
   align-items: baseline;
+  max-width: 100%;
   font-family: var(--font-display);
-  font-size: clamp(64px, 14vw, 120px);
+  font-size: clamp(52px, 24cqi, 92px);
   line-height: 1;
   color: var(--text-primary);
   letter-spacing: 0.02em;
@@ -106,6 +108,12 @@
 .clock-hero-wave.playing span {
   background: var(--text-secondary);
   animation: wave-bar 900ms ease-in-out infinite alternate;
+}
+
+/* Real spectrum: bar heights come from inline style, driven by the analyser. */
+.clock-hero-wave.live span {
+  background: var(--text-secondary);
+  transition: height 90ms linear;
 }
 
 .clock-hero-wave span:nth-child(3n) {

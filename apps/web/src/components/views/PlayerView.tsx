@@ -1,8 +1,11 @@
 import type { FormEvent, ReactNode } from "react";
 import type { AgentTrace, PlaybackState, QueueItem } from "../../types";
-import { AgentPanel, type ChatMessage } from "../AgentPanel";
-import { PlaybackPanel } from "../PlaybackPanel";
-import { QueuePanel } from "../QueuePanel";
+import { AgentDock, type ChatMessage } from "../AgentDock";
+import { AgentTracePanel } from "../AgentTracePanel";
+import { ClockHero } from "../ClockHero";
+import { CollapsiblePanel } from "../CollapsiblePanel";
+import { NowPlayingStage } from "../NowPlayingStage";
+import { QueueList } from "../QueueList";
 
 type Props = {
   messages: ChatMessage[];
@@ -12,6 +15,8 @@ type Props = {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onGenerate: () => void;
   agentTrace: AgentTrace | null;
+  onAir: boolean;
+  spectrumLevels: number[] | null;
   playback: PlaybackState;
   statusLabel: string;
   current: QueueItem | null | undefined;
@@ -27,6 +32,11 @@ type Props = {
   children?: ReactNode;
 };
 
+/**
+ * Two-column player layout. The left rail (1/3) stacks the station clock over
+ * the chat dock; the right column (2/3) is the player itself — the now-playing
+ * stage, the queue, and the agent trace. The two columns stretch to equal height.
+ */
 export function PlayerView({
   messages,
   mood,
@@ -35,6 +45,8 @@ export function PlayerView({
   onSubmit,
   onGenerate,
   agentTrace,
+  onAir,
+  spectrumLevels,
   playback,
   statusLabel,
   current,
@@ -50,34 +62,44 @@ export function PlayerView({
   children
 }: Props) {
   return (
-    <section className="workspace" aria-label="Radio workspace">
-      <AgentPanel
-        messages={messages}
-        mood={mood}
-        setMood={setMood}
-        busy={busy}
-        onSubmit={onSubmit}
-        onGenerate={onGenerate}
-        agentTrace={agentTrace}
-      />
+    <section className="player-view" aria-label="Radio player">
+      <div className="player-rail">
+        <ClockHero onAir={onAir} levels={spectrumLevels} />
+        <AgentDock
+          messages={messages}
+          mood={mood}
+          setMood={setMood}
+          busy={busy}
+          onSubmit={onSubmit}
+          onGenerate={onGenerate}
+        />
+      </div>
 
-      <PlaybackPanel
-        playback={playback}
-        statusLabel={statusLabel}
-        current={current}
-        error={error}
-        canPlayAudio={canPlayAudio}
-        progressSeconds={progressSeconds}
-        displayDuration={displayDuration}
-        onSeek={onSeek}
-        onTogglePlay={onTogglePlay}
-        onPrevious={onPrevious}
-        onNext={onNext}
-      >
-        {children}
-      </PlaybackPanel>
+      <div className="player-main">
+        <NowPlayingStage
+          playback={playback}
+          statusLabel={statusLabel}
+          current={current}
+          error={error}
+          canPlayAudio={canPlayAudio}
+          progressSeconds={progressSeconds}
+          displayDuration={displayDuration}
+          onSeek={onSeek}
+          onTogglePlay={onTogglePlay}
+          onPrevious={onPrevious}
+          onNext={onNext}
+        >
+          {children}
+        </NowPlayingStage>
 
-      <QueuePanel queueLength={playback.queue.length} upcoming={upcoming} />
+        <CollapsiblePanel title="Queue" meta={`${playback.queue.length} items`} defaultOpen>
+          <QueueList upcoming={upcoming} />
+        </CollapsiblePanel>
+
+        <CollapsiblePanel title="Agent details" meta={agentTrace?.mode ?? "ready"}>
+          <AgentTracePanel trace={agentTrace} />
+        </CollapsiblePanel>
+      </div>
     </section>
   );
 }

@@ -116,6 +116,7 @@ fun Application.module() {
     installPlugins(services.json)
     routing {
         staticFiles("/media/tts", Env.path("TTS_CACHE_DIR", "cache/tts").toFile())
+        registerMediaProxyRoutes(services.engine)
         route("/api") { registerApiRoutes(services) }
         webSocket("/ws/stream") { streamPlayback(services) }
     }

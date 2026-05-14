@@ -1,4 +1,4 @@
-import { resolveMediaUrl } from "../api";
+import { resolveMediaUrl, streamMediaUrl } from "../api";
 import type { QueueItem } from "../types";
 
 /**
@@ -11,8 +11,10 @@ import type { QueueItem } from "../types";
  */
 export function mainMediaUrl(item: QueueItem | null | undefined): string | undefined {
   if (!item) return undefined;
-  if (item.type === "track") return resolveMediaUrl(item.track?.streamUrl);
-  return resolveMediaUrl(item.track?.streamUrl ?? item.ttsUrl);
+  // Track streams go through the same-origin proxy (real spectrum); the text-only
+  // host break plays its TTS file, which is already served from radio-server.
+  if (item.type === "track") return streamMediaUrl(item.track?.streamUrl);
+  return streamMediaUrl(item.track?.streamUrl) ?? resolveMediaUrl(item.ttsUrl);
 }
 
 /**

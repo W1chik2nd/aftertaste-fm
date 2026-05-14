@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
+import { WAVE_BARS } from "../hooks/useAudioSpectrum";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-const WAVE_BARS = 28;
 
 type Props = {
   onAir: boolean;
+  /** Real frequency spectrum (0..1 per bar) when available, else null for the CSS fallback. */
+  levels: number[] | null;
 };
 
-export function ClockHero({ onAir }: Props) {
+export function ClockHero({ onAir, levels }: Props) {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -34,11 +36,27 @@ export function ClockHero({ onAir }: Props) {
         <span className="clock-hero-dot" aria-hidden="true" />
         {onAir ? "On Air" : "Off Air"}
       </span>
-      <div className={`clock-hero-wave ${onAir ? "playing" : ""}`} aria-hidden="true">
-        {Array.from({ length: WAVE_BARS }, (_, index) => (
-          <span key={index} style={{ animationDelay: `${(index % 7) * 0.11}s` }} />
+      <Waveform onAir={onAir} levels={levels} />
+    </section>
+  );
+}
+
+function Waveform({ onAir, levels }: Props) {
+  // Real spectrum when the analyser has data; otherwise the synthesized CSS animation.
+  if (levels) {
+    return (
+      <div className="clock-hero-wave live" aria-hidden="true">
+        {levels.map((level, index) => (
+          <span key={index} style={{ height: `${Math.max(8, level * 100)}%` }} />
         ))}
       </div>
-    </section>
+    );
+  }
+  return (
+    <div className={`clock-hero-wave ${onAir ? "playing" : ""}`} aria-hidden="true">
+      {Array.from({ length: WAVE_BARS }, (_, index) => (
+        <span key={index} style={{ animationDelay: `${(index % 7) * 0.11}s` }} />
+      ))}
+    </div>
   );
 }

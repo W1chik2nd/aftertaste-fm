@@ -1,0 +1,146 @@
+/* Two-column player layout. The left rail stacks the station clock over the
+   chat dock; the right column is the player — now-playing stage, queue, agent
+   trace. Variable-length regions scroll internally so the page stays composed. */
+
+.player-view {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 2.1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.player-rail,
+.player-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Keep the chat controls visible below the clock instead of stretching into an
+   empty rail. */
+.player-rail .agent-dock {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.now-playing-stage,
+.agent-dock,
+.collapsible {
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-card);
+}
+
+/* --- Stage (hero) --- */
+
+.now-playing-stage {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  min-height: min(760px, calc(100vh - 190px));
+  padding: clamp(20px, 3vw, 36px);
+}
+
+/* --- Agent dock --- */
+
+.agent-dock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: clamp(14px, 2vw, 20px);
+}
+
+/* Composer + generate anchor to the bottom of the rail; the conversation, when
+   open, fills the space between the toggle and the composer. */
+.agent-dock-toggle,
+.collapsible-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 40px;
+  padding: 0 var(--space-1);
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition: color 120ms ease;
+}
+
+.agent-dock-toggle:hover,
+.collapsible-head:hover {
+  color: var(--text-primary);
+}
+
+.agent-dock-count,
+.collapsible-meta {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-size: 0.68rem;
+}
+
+.collapsible-title {
+  color: inherit;
+}
+
+.collapsible-chevron {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  transition: transform 160ms ease;
+}
+
+.agent-dock-toggle.open .collapsible-chevron,
+.collapsible.open .collapsible-chevron {
+  transform: rotate(180deg);
+}
+
+/* --- Collapsible panels (queue, agent details) --- */
+
+.collapsible-head {
+  padding: var(--space-3) var(--space-4);
+}
+
+.collapsible-meta {
+  margin-left: 0;
+}
+
+.collapsible-head .collapsible-chevron {
+  margin-right: var(--space-1);
+}
+
+.collapsible-head .collapsible-meta {
+  margin-left: auto;
+}
+
+.collapsible-body {
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.collapsible .queue-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .player-view {
+    grid-template-columns: 1fr;
+  }
+
+  .now-playing-stage {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .now-playing-stage {
+    padding: var(--space-4);
+  }
+}
