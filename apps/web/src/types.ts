@@ -7,6 +7,7 @@ export type Track = {
   durationMs?: number | null;
   coverUrl?: string | null;
   streamUrl?: string | null;
+  streamExpiresAt?: string | null;
   unavailableReason?: string | null;
 };
 

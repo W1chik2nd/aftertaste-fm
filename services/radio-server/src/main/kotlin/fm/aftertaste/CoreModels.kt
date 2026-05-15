@@ -40,6 +40,9 @@ data class Track(
     val coverUrl: String? = null,
     val playCount: Int? = null,
     val streamUrl: String? = null,
+    // ISO-8601 instant the streamUrl stops working. Provider stream URLs are signed and
+    // short-lived; the engine refreshes the current item before play once this is past.
+    val streamExpiresAt: String? = null,
     val unavailableReason: String? = null
 )
 

@@ -2,6 +2,14 @@ package fm.aftertaste
 
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.slf4j.LoggerFactory
+
+/**
+ * Refresh a stream URL this far before its stated expiry. The whole show is hydrated once at
+ * plan time, but provider URLs are signed and short-lived; a track runs ~3-4 min, so a margin
+ * under one track length would let a URL die mid-song. Five minutes clears a full track.
+ */
+private const val STREAM_REFRESH_MARGIN_MS = 5 * 60 * 1000L
 
 class RadioEngine(
     private val provider: MusicProvider,
@@ -14,6 +22,7 @@ class RadioEngine(
     private val weatherService: WeatherService = WeatherService(),
     hostVoiceService: HostVoiceService = HostVoiceService()
 ) {
+    private val logger = LoggerFactory.getLogger(RadioEngine::class.java)
     private val agent = RadioAgent()
     private val planner = ShowPlanner(hostConfig)
     private val llmPlanner = ConfiguredLlmShowPlanner.fromEnvironment()
@@ -79,10 +88,15 @@ class RadioEngine(
         )
     }
 
-    suspend fun now(): PlaybackState = mutex.withLock { queue.state() }
+    suspend fun now(): PlaybackState = mutex.withLock {
+        refreshCurrentStreamIfStale()
+        queue.state()
+    }
 
     suspend fun play(): PlaybackState = mutex.withLock {
-        queue.play().also {
+        queue.play()
+        refreshCurrentStreamIfStale()
+        queue.state().also {
             store.rememberPlayback("play", it.currentItem)
             persist()
         }
@@ -96,14 +110,18 @@ class RadioEngine(
     }
 
     suspend fun next(): PlaybackState = mutex.withLock {
-        queue.next().also {
+        queue.next()
+        refreshCurrentStreamIfStale()
+        queue.state().also {
             store.rememberPlayback("next", it.currentItem)
             persist()
         }
     }
 
     suspend fun previous(): PlaybackState = mutex.withLock {
-        queue.previous().also {
+        queue.previous()
+        refreshCurrentStreamIfStale()
+        queue.state().also {
             store.rememberPlayback("previous", it.currentItem)
             persist()
         }
@@ -202,7 +220,7 @@ class RadioEngine(
         val streams = provider.getStreamUrls(tracks.map { it.id }).associateBy { it.trackId }
         return tracks.map { track ->
             val stream = streams[track.id] ?: StreamUrl(provider.name, track.id, url = null, reason = "unknown")
-            track.copy(streamUrl = stream.url, unavailableReason = stream.reason.takeIf { stream.url == null })
+            track.applyStream(stream)
         }
     }
 
@@ -212,7 +230,40 @@ class RadioEngine(
                 segment.copy(tracks = hydrateStreams(segment.tracks))
             }
         )
+
+    /**
+     * Provider stream URLs are signed and short-lived, but the whole show is hydrated once at
+     * plan time. By the time playback reaches a later chapter every URL — including the earlier
+     * ones — has expired. Before serving the current item, re-fetch its stream if the URL is
+     * past expiry (or within the safety margin) so playback never lands on a dead URL.
+     */
+    private suspend fun refreshCurrentStreamIfStale() {
+        val track = queue.currentItem()?.track ?: return
+        if (!track.streamIsStale()) return
+        val refreshed = provider.getStreamUrl(track.id)
+        if (refreshed.url == null) {
+            logger.warn("Stream refresh for {} returned no URL: {}", track.id, refreshed.reason)
+        }
+        queue.updateCurrentTrack(track.applyStream(refreshed))
+    }
+
+    private fun Track.streamIsStale(): Boolean {
+        if (streamUrl == null) return false
+        val expiresAt = streamExpiresAt ?: return false
+        val expiry = runCatching { java.time.OffsetDateTime.parse(expiresAt).toInstant() }.getOrElse {
+            logger.warn("Unparseable streamExpiresAt '{}' for {}; treating stream as stale.", expiresAt, id)
+            return true
+        }
+        return expiry.isBefore(java.time.Instant.now().plusMillis(STREAM_REFRESH_MARGIN_MS))
+    }
 }
+
+private fun Track.applyStream(stream: StreamUrl): Track =
+    copy(
+        streamUrl = stream.url,
+        streamExpiresAt = stream.expiresAt,
+        unavailableReason = stream.reason.takeIf { stream.url == null }
+    )
 
 fun extractPlaylistId(source: String): String {
     val idMatch = Regex("""(?:id=|playlist/)(\d+)""").find(source)

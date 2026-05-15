@@ -73,6 +73,18 @@ class PlaybackQueue(
         return state()
     }
 
+    fun currentItem(): QueueItem? = items.getOrNull(currentIndex)
+
+    /**
+     * Swaps the track on the item now playing — used to drop a freshly re-fetched stream URL
+     * into place. A `host_voice` row carries its chapter lead in the same `track` field, so
+     * this covers both row types.
+     */
+    fun updateCurrentTrack(track: Track) {
+        val existing = items.getOrNull(currentIndex) ?: return
+        items = items.toMutableList().also { it[currentIndex] = existing.copy(track = track) }
+    }
+
     fun clear(): PlaybackState {
         showPlan = null
         items = emptyList()
